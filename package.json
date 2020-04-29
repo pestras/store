@@ -1,0 +1,20 @@
+{
+  "name": "@pestras/store",
+  "version": "0.0.1",
+  "description": "State management stores",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pestras/store.git"
+  },
+  "scripts": {
+    "tsc": "tsc"
+  },
+  "author": "pestras",
+  "license": "ISC",
+  "dependencies": {
+    "rxjs": "^6.5.5",
+    "tools-box": "^0.1.36"
+  },
+  "devDependencies": {}
+}
