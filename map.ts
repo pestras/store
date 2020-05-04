@@ -23,12 +23,14 @@ interface MultiSelector<T> {
 export class MapStore<T> {
   private id: DocId;
   private dataBS = new BehaviorSubject<Map<DocId, T>>(null);
+  private LoadingBS = new BehaviorSubject<boolean>(true);
   private selectors: Selector<T>[] = [];
   private multiSelectors: MultiSelector<T>[] = [];
   private indexes: { [key: string]: Map<DocId, DocId> } = {};
 
   readonly select$ = this.dataBS.pipe(filter(data => !!data), map(data => this.toArray(data)));
   readonly count$ = this.select$.pipe(map(data => data.length));
+  readonly loading$ = this.LoadingBS.asObservable();
 
   constructor(
     id: keyof T,
@@ -43,8 +45,6 @@ export class MapStore<T> {
         if (index !== id) this.addIndex(index, data);
     }
   }
-
-  private get hasIndexes() { return Object.keys(this.indexes).length > 0; }
 
   private addIndex(key: keyof T, data: T[]) {
     let map = new Map<DocId, DocId>();
@@ -95,12 +95,12 @@ export class MapStore<T> {
 
   private updateSelectors(docs: Map<DocId, T>, force = false) {
     for (let selector of this.selectors) {
-      let effected = force || !!this._get(selector.filter, docs);
+      let effected = force || !!this._get(docs, selector.filter);
       if (effected) selector.bs.next(this.get(selector.filter, selector.indexValue));
     }
 
     for (let selector of this.multiSelectors) {
-      let effected = force || this._getMany(<any[]>selector.filter, docs).length > 0;
+      let effected = force || this._getMany(docs, <any[]>selector.filter).length > 0;
       if (effected) selector.bs.next(this.getMany(<any>selector.filter, selector.indexValues));
     }
   }
@@ -113,38 +113,38 @@ export class MapStore<T> {
     return this.map.size;
   }
 
-  private _get(id: DocId, map: Map<DocId, T>): T;
-  private _get(index: keyof T, value: DocId, map: Map<DocId, T>): T;
-  private _get(filter: (doc: T) => boolean, map: Map<DocId, T>): T;
-  private _get(filter: DocId | ((doc: T) => boolean) | keyof T, val: Map<DocId, T> | DocId, map?: Map<DocId, T>): T {
+  private _get(map: Map<DocId, T>, id: DocId): T;
+  private _get(map: Map<DocId, T>, filter: (doc: T) => boolean): T;
+  private _get(map: Map<DocId, T>, index: keyof T, value: DocId): T;
+  private _get(map: Map<DocId, T>, filter: DocId | ((doc: T) => boolean) | keyof T, val?: DocId): T {
     if (typeof filter === "function") {
-      for (const doc of this.toArray(<Map<DocId, T>>val))
+      for (const doc of this.toArray(map))
         if (filter(doc)) return doc;
-    } else if (map) {
-      return map.get(this.indexes[<string>filter].get(<DocId>val));
+    } else if (val) {
+      return map.get(this.indexes[<string>filter].get(val));
     } else {
-      return (<Map<DocId, T>>val).get(<DocId>filter);
+      return map.get(<DocId>filter);
     }
   }
 
   get(id: DocId): T;
-  get(index: keyof T, value: DocId): T;
   get(filter: (doc: T) => boolean): T;
+  get(index: keyof T, value: DocId): T;
   get(filter: DocId | ((doc: T) => boolean) | keyof T, val?: DocId): T {
-    return val !== undefined ? this._get(<any>filter, val, this.map) : this._get(<any>filter, this.map);
+    return val !== undefined ? this._get(this.map, <any>filter, val) : this._get(this.map, <any>filter);
   }
 
   has(id: DocId): boolean;
-  has(index: keyof T, value: DocId): boolean;
   has(filter: (doc: T) => boolean): boolean;
+  has(index: keyof T, value: DocId): boolean;
   has(filter: DocId | ((doc: T) => boolean) | keyof T, val?: DocId): boolean {
-    return val !== undefined ? !!this._get(<any>filter, val, this.map) : !!this._get(<any>filter, this.map);
+    return val !== undefined ? !!this._get(this.map, <any>filter, val) : !!this._get(this.map, <any>filter);
   }
 
-  private _getMany(ids: DocId[], map: Map<DocId, T>): T[];
-  private _getMany(index: keyof T, values: DocId[], map: Map<DocId, T>): T[];
-  private _getMany(filter: (doc: T) => boolean, map: Map<DocId, T>): T[];
-  private _getMany(filter: DocId[] | ((doc: T) => boolean) | keyof T, values: DocId[] | Map<DocId, T>, map?: Map<DocId, T>): T[] {
+  private _getMany(map: Map<DocId, T>, ids: DocId[]): T[];
+  private _getMany(map: Map<DocId, T>, filter: (doc: T) => boolean): T[];
+  private _getMany(map: Map<DocId, T>, index: keyof T, values: DocId[]): T[];
+  private _getMany(map: Map<DocId, T>, filter: DocId[] | ((doc: T) => boolean) | keyof T, values?: DocId[]): T[] {
     let result: T[] = [];
 
     if (Array.isArray(filter)) {
@@ -166,15 +166,15 @@ export class MapStore<T> {
   }
 
   getMany(ids: DocId[]): T[];
-  getMany(index: keyof T, values: DocId[]): T[];
   getMany(filter: (doc: T) => boolean): T[];
+  getMany(index: keyof T, values: DocId[]): T[];
   getMany(filter: DocId[] | ((doc: T) => boolean) | keyof T, values?: DocId[]): T[] {
-    return values !== undefined ? this._getMany(<any>filter, values, this.map) : this._getMany(<any>filter, this.map);
+    return values !== undefined ? this._getMany(this.map, <any>filter, values) : this._getMany(this.map, <any>filter);
   }
 
   select(id: DocId): Observable<T>;
-  select(index: keyof T, value: DocId): Observable<T>;
   select(filter: (doc: T) => boolean): Observable<T>;
+  select(index: keyof T, value: DocId): Observable<T>;
   select(filter: DocId | ((doc: T) => boolean) | keyof T, val?: DocId): Observable<T> {
     let id = Unique.Get();
     let doc = this.get(<any>filter, val);
@@ -189,8 +189,8 @@ export class MapStore<T> {
   }
 
   selectMany(id: DocId[]): Observable<T[]>;
-  selectMany(index: keyof T, values: DocId[]): Observable<T[]>;
   selectMany(filter: (doc: T) => boolean): Observable<T[]>;
+  selectMany(index: keyof T, values: DocId[]): Observable<T[]>;
   selectMany(filter: DocId[] | ((doc: T) => boolean) | keyof T, values?: DocId[]): Observable<T[]> {
     let id = Unique.Get();
     let docs = this.getMany(<any>filter, values);
