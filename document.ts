@@ -91,15 +91,15 @@ export class Document<T = any> {
   protected link(store?: Store, key: string = this.storeKey, mode = SYNC_MODE.MERGE_PULL) {
     if (!store) {
       this._store = this._uStore || null;
-      return this;
-    }
-
-    if (store && (key || this.storeKey)) {
+      this._uStore = null;
+      if (this._store) return this.sync(mode);
+    } else if (store && (key || this.storeKey)) {
       this._uStore = null;
       this._store = store;
-      this._store.ready$.pipe(tap(() => !!mode && this.sync(mode))).subscribe();
-      return this;
+      return this._store.ready$.pipe(tap(() => !!mode && this.sync(mode)))
     }
+
+    return empty();
   }
 
   protected unlink(clear = true) {
