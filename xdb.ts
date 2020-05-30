@@ -397,7 +397,7 @@ export class XDB {
     if (this._listStores.has(name)) return throwError(name + ' is already exists as a list store');
 
     return this.open().pipe(switchMap(db => {
-      return new Observable(subscriber => {
+      return new Observable<Store>(subscriber => {
         let self = this;
         if (!this._db.objectStoreNames.contains(name)) {
           let os = this._db.createObjectStore(name);
