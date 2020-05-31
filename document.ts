@@ -1,7 +1,7 @@
 import { BehaviorSubject, empty } from "rxjs";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Store } from "./xdb";
-import { filter, take, switchMap, map, tap } from "rxjs/operators";
+import { filter, switchMap, map, tap } from "rxjs/operators";
 import { getValue } from '@pestras/toolbox/object/get-value';
 import { omit } from '@pestras/toolbox/object/omit';
 
@@ -24,7 +24,7 @@ export class Document<T = any> {
   private _store: Store;
 
   readonly data$ = this._dataSub.asObservable();
-  readonly ready$ = this._readySub.pipe(filter(synced => synced), take(1));
+  readonly ready$ = this._readySub.pipe(filter(synced => synced));
 
   constructor(store?: Store, readonly publishAfterStoreSync = false) {
     if (store) {
@@ -56,10 +56,12 @@ export class Document<T = any> {
     let curr = this._dataSub.getValue();
     let isNew = !curr;
     Object.assign(curr || {}, data);
-    !this.publishAfterStoreSync && this._dataSub.next(curr);
+    if (!this.publishAfterStoreSync || !this._store) {
+      this._dataSub.next(curr);
+      cb && cb(curr);
+    }
     if (this._store) this._store.update(this.storeKey, curr).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(curr);
-      cb && cb(curr);
     });
     return this;
   }
@@ -68,7 +70,10 @@ export class Document<T = any> {
     let data = this._dataSub.getValue();
     if (!data) return this;
     omit(data, keyPaths);
-    !this.publishAfterStoreSync && this._dataSub.next(data);
+    if (!this.publishAfterStoreSync || !this._store) {
+      this._dataSub.next(data);
+      cb && cb(data);
+    }
     if (this._store) this._store.update(this.storeKey, data).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(data);
       cb && cb(data);
@@ -78,10 +83,13 @@ export class Document<T = any> {
 
   protected clear(cb?: () => void): Document<T> {
     if (this._dataSub.getValue() === null) return this;
-    !this.publishAfterStoreSync && this._dataSub.next(null);
+    if (!this.publishAfterStoreSync || !this._store) {
+      this._dataSub.next(null);
+      cb && cb();
+    }
     if (this._store) this._store.delete(this.storeKey).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(null);
-      cb && cb();
+       cb && cb();
     });
     return this;
   }

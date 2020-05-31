@@ -1,11 +1,11 @@
 import { Observable, of, BehaviorSubject, throwError, Subscriber, onErrorResumeNext, Subject } from "rxjs";
-import { filter, take, map, switchMap } from "rxjs/operators";
+import { filter, map, switchMap, distinctUntilChanged } from "rxjs/operators";
 
 export class Store {
   protected _keys = new Set<IDBValidKey>();
   protected _readySub = new BehaviorSubject<boolean>(false);
 
-  readonly ready$ = this._readySub.pipe(filter(ready => ready), take(1));
+  readonly ready$ = this._readySub.pipe(filter(ready => ready));
 
   constructor(
     protected _db: XDB,
@@ -300,17 +300,25 @@ export class XDB {
   protected _stores = new Map<string, Store>();
   protected _listStores = new Map<string, ListStore<any>>();
   protected _upgradeSub = new Subject<number>();
+  protected _blockSub = new Subject<void>();
+  protected _errorSub = new Subject<any>();
   protected _open = false;
-  protected _readySub = new BehaviorSubject<boolean>(false);
+  protected _healthySub = new BehaviorSubject<boolean>(null);
   protected _db: IDBDatabase;
 
-  readonly ready$ = this._readySub.pipe(filter(v => v), take(1));
+  readonly healthy$ = this._healthySub.pipe(filter(v => v !== null), distinctUntilChanged());
+  readonly ready$ = this.healthy$.pipe(filter(v => v));
   readonly upgrade$ = this._upgradeSub.asObservable();
+  readonly block$ = this._blockSub.asObservable();
+  readonly error$ = this._errorSub.asObservable();
 
   private static Connections = new Map<string, XDB>();
 
   constructor(readonly name: string, protected _v: number = 1, readonly keepAlive = false) {
-    if (!XDB.Supported) throw 'indexeddb not supported';
+    if (!XDB.Supported) {
+      this._healthySub.next(false);
+      this._errorSub.next('indexeddb not supported');
+    }
     if (XDB.Connections.has(this.name)) {
       let db = XDB.Connections.get(this.name);
       if (this._v !== db.version) db._v = this._v;
@@ -321,9 +329,9 @@ export class XDB {
         next() {
           this._open = true;
           this.keepAlive || this.close();
-          this._readySub.next(true);
+          this._healthySub.next(true);
         },
-        error(err) { throw err }
+        error() { this._healthySub.next(false); }
       });
     }
   }
@@ -358,11 +366,15 @@ export class XDB {
 
       req.onerror = function (e: Event) {
         subscriber.error({ name: `error opening ${self.name} db`, error: req.error });
+        self._errorSub.next({ name: `error opening ${self.name} db`, error: req.error });
+        self._open = false;
         subscriber.complete();
       }
 
       req.onblocked = function () {
         subscriber.error({ name: `db ${self.name} is blocked` });
+        self._blockSub.next();
+        self._open = false;
         subscriber.complete();
       }
 

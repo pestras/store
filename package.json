@@ -1,6 +1,6 @@
 {
   "name": "@pestras/store",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "State management stores",
   "main": "index.js",
   "repository": {

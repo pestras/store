@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, empty, of } from "rxjs";
 import { filterNil } from "./operators/filterNil";
-import { map, filter, take, switchMap, tap } from "rxjs/operators";
+import { map, filter, switchMap, tap } from "rxjs/operators";
 import { ListStore, XDB } from "./xdb";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { distinctUntilArrChanged } from "./operators/distinctUntilArrChanged";
@@ -35,7 +35,7 @@ export class Collection<T, U = { [key: string]: any }> {
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0));
   readonly loading$ = this._loadingSub.asObservable();
   readonly active$ = this._activeSub.asObservable();
-  readonly ready$ = this._readySub.pipe(filter(ready => ready), take(1));
+  readonly ready$ = this._readySub.pipe(filter(ready => ready));
 
   constructor(keyPath: string, db?: XDB, options?: CollectionOptions<U>) {
     this._id = keyPath;
@@ -147,7 +147,7 @@ export class Collection<T, U = { [key: string]: any }> {
     let doc = new Doc<T, U>(entry[this._id], entry, state || this._dState);
     this.map.set(entry[this._id], doc);
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(doc);
     }
@@ -174,7 +174,7 @@ export class Collection<T, U = { [key: string]: any }> {
       return;
     }
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(inserted)
     }
@@ -198,7 +198,7 @@ export class Collection<T, U = { [key: string]: any }> {
     if (state) Object.assign(doc.state, state);
     this.map.set(id, doc);
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(doc)
     }
@@ -239,7 +239,7 @@ export class Collection<T, U = { [key: string]: any }> {
       return;
     }
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(updated);
     }
@@ -266,7 +266,7 @@ export class Collection<T, U = { [key: string]: any }> {
       return;
     }
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(updated);
     }
@@ -289,7 +289,7 @@ export class Collection<T, U = { [key: string]: any }> {
     let oldDoc = map.get(newDoc.id) || null;
     map.set(newDoc.id, newDoc);
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(oldDoc, newDoc);
     }
@@ -304,7 +304,7 @@ export class Collection<T, U = { [key: string]: any }> {
     let docs = entries.map(entry => new Doc(entry[this._id], entry, state || this._dState));
     let map = this.docsToMap(docs);
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(docs);
     }
@@ -324,7 +324,7 @@ export class Collection<T, U = { [key: string]: any }> {
       return;
     }
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(doc);
     }
@@ -356,7 +356,7 @@ export class Collection<T, U = { [key: string]: any }> {
       }
     }
 
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       cb && cb(removed);
     }
@@ -369,7 +369,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
   protected clear(cb?: () => void): void {
     let map = new Map<IDBValidKey, Doc<T, U>>();
-    if (!this._publishAfterStoreSync) {
+    if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       this._activeSub.next(null);
       cb && cb();
