@@ -2,6 +2,7 @@ import { BehaviorSubject, empty } from "rxjs";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Store } from "./xdb";
 import { filter, take, switchMap, map, tap } from "rxjs/operators";
+import { getValue } from '@pestras/toolbox/object/get-value';
 
 export enum SYNC_MODE {
   NONE = 0,
@@ -41,13 +42,13 @@ export class Document<T = any> {
   get storeKey() { return this.constructor.name; }
 
   get(): T;
-  get<U extends keyof T>(key: U): T[U];
-  get<U extends keyof T>(key?: U) {
+  get(keyPath: string): any;
+  get(keyPath?: string) {
     let data = this._dataSub.getValue();
-    return key ? data[key] || null : data;
+    return keyPath ? getValue(data, keyPath) : data;
   }
 
-  watch(keys: string[] = []) { return this._dataSub.pipe(distinctUntilObjChanged(keys)); }
+  watch(keyPaths: string[] = []) { return this._dataSub.pipe(distinctUntilObjChanged(keyPaths)); }
 
   protected update(data: Partial<T>, cb?: (data?: T) => void): Document<T> {
     if (!data) return this;
