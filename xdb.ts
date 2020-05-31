@@ -296,27 +296,21 @@ export interface XDBOptions {
   keepAlive: boolean;
 }
 
-export class XDB {
+export abstract class XDB {
   protected _stores = new Map<string, Store | ListStore<any>>();
-  protected _upgradeSub = new Subject<number>();
-  protected _blockSub = new Subject<void>();
-  protected _errorSub = new Subject<any>();
   protected _open = false;
   protected _healthySub = new BehaviorSubject<boolean>(null);
   protected _db: IDBDatabase;
 
   readonly healthy$ = this._healthySub.pipe(filter(v => v !== null), distinctUntilChanged());
   readonly ready$ = this.healthy$.pipe(filter(v => v));
-  readonly upgrade$ = this._upgradeSub.asObservable();
-  readonly block$ = this._blockSub.asObservable();
-  readonly error$ = this._errorSub.asObservable();
 
   private static Connections = new Map<string, XDB>();
 
   constructor(readonly name: string, protected _v: number = 1, readonly keepAlive = false) {
     if (!XDB.Supported) {
       this._healthySub.next(false);
-      this._errorSub.next('indexeddb not supported');
+      this.onerror(new Error('indexeddb not supported'));
     }
     if (XDB.Connections.has(this.name)) {
       let db = XDB.Connections.get(this.name);
@@ -341,6 +335,10 @@ export class XDB {
   get version() { return this._v; }
   set version(val: number) { this._v = val; }
 
+  abstract onupgrade(oldVersion: number): void;
+  abstract onerror(err: any): void;
+  abstract onblock(): void;
+
   open() {
     return new Observable<boolean>(subscriber => {
       if (this._db && this._open) {
@@ -361,20 +359,20 @@ export class XDB {
 
       req.onerror = function (e: Event) {
         self._open = false;
-        subscriber.error({ name: `error opening ${self.name} db`, error: req.error });
-        self._errorSub.next({ name: `error opening ${self.name} db`, error: req.error });
+        subscriber.error(req.error);
+        self.onerror(req.error);
         subscriber.complete();
       }
 
       req.onblocked = function () {
         self._open = false;
-        subscriber.error({ name: `db ${self.name} is blocked` });
-        self._blockSub.next();
+        subscriber.error(new Error(`db ${self.name} is blocked`));
+        self.onblock();
         subscriber.complete();
       }
 
       req.onupgradeneeded = function (e) {
-        self._upgradeSub.next(e.oldVersion);
+        self.onupgrade(e.oldVersion);
       }
     });
   }
@@ -407,7 +405,7 @@ export class XDB {
     if (this._db.objectStoreNames.contains(name)) return;
     this._db.createObjectStore(name, keyPath ? { keyPath } : undefined);
     let store: Store | ListStore<any>;
-    
+
     if (keyPath) store = new ListStore<any>(this, name, keyPath);
     else store = new Store(this, name);
   
