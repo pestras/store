@@ -14,11 +14,11 @@ export class Store {
     this._db.transaction(this.name, 'readonly').subscribe(trans => {
       let self = this;
       let req = trans.objectStore(this.name).getAllKeys();
-      req.onsuccess = function (this: Store) {
-        this._keys = new Set(req.result);
-        this._readySub.next(true);
+      req.onsuccess = function () {
+        self._keys = new Set(req.result);
+        self._readySub.next(true);
         self._db.keepAlive || self._db.close();
-      }.bind(this);
+      };
       req.onerror = function () {
         console.log(req.error);
         self._db.keepAlive || self._db.close();
@@ -297,8 +297,7 @@ export interface XDBOptions {
 }
 
 export class XDB {
-  protected _stores = new Map<string, Store>();
-  protected _listStores = new Map<string, ListStore<any>>();
+  protected _stores = new Map<string, Store | ListStore<any>>();
   protected _upgradeSub = new Subject<number>();
   protected _blockSub = new Subject<void>();
   protected _errorSub = new Subject<any>();
@@ -404,58 +403,23 @@ export class XDB {
     })
   }
 
-  store(name: string) {
-    if (this._stores.has(name)) return of(this._stores.get(name));
-    if (this._listStores.has(name)) return throwError(name + ' is already exists as a list store');
-
-    return this.open().pipe(switchMap(db => {
-      return new Observable<Store>(subscriber => {
-        let self = this;
-        if (!this._db.objectStoreNames.contains(name)) {
-          let os = this._db.createObjectStore(name);
-          os.transaction.oncomplete = function () {
-            let store = new Store(self, name);
-            self._stores.set(name, store);
-            if (!self.keepAlive) self.close();
-            subscriber.next(store);
-            subscriber.complete();
-          }
-        } else {
-          let store = new Store(self, name);
-          self._stores.set(name, store);
-          if (!this.keepAlive) this.close();
-          subscriber.next(store);
-          subscriber.complete();
-        }
-      });
-    }));
+  createStore(name: string, keyPath?: string) {
+    if (this._db.objectStoreNames.contains(name)) return;
+    this._db.createObjectStore(name, keyPath ? { keyPath } : undefined);
+    let store: Store | ListStore<any>;
+    
+    if (keyPath) store = new ListStore<any>(this, name, keyPath);
+    else store = new Store(this, name);
+  
+    this._stores.set(name, store);
   }
 
-  listStore<T = any>(name: string, keyPath: IDBValidKey) {
-    if (this._listStores.has(name)) return of(this._listStores.get(name));
-    if (this._stores.has(name)) return throwError(name + ' is already exists as a store');
+  dropStore(name: string) {
+    this._db.deleteObjectStore(name);
+  }
 
-    return this.open().pipe(switchMap(db => {
-      return new Observable<ListStore<T>>(subscriber => {
-        let self = this;
-        if (!this._db.objectStoreNames.contains(name)) {
-          let os = this._db.createObjectStore(name);
-          os.transaction.oncomplete = function () {
-            let store = new ListStore<T>(self, name, keyPath);
-            self._listStores.set(name, store);
-            if (!self.keepAlive) self.close();
-            subscriber.next(store);
-            subscriber.complete();
-          }
-        } else {
-          let store = new ListStore<T>(this, name, keyPath);
-          self._listStores.set(name, store);
-          if (!this.keepAlive) this.close();
-          subscriber.next(store);
-          subscriber.complete();
-        }
-      });
-    }));
+  store<T = any>(name: string): Store | ListStore<T> {
+    return this._stores.get(name);
   }
 
   transaction(storeNames: string | string[], mode?: IDBTransactionMode) {
@@ -487,9 +451,5 @@ export class XDB {
         });
       });
     }
-  }
-
-  dropStore(name: string) {
-    this._db.deleteObjectStore(name);
   }
 }
