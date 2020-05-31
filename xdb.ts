@@ -311,8 +311,11 @@ export class XDB {
 
   constructor(readonly name: string, protected _v: number = 1, readonly keepAlive = false) {
     if (!XDB.Supported) throw 'indexeddb not supported';
-    if (XDB.Connections.has(this.name)) return XDB.Connections.get(this.name);
-    else {
+    if (XDB.Connections.has(this.name)) {
+      let db = XDB.Connections.get(this.name);
+      if (this._v !== db.version) db._v = this._v;
+      return db;
+    } else {
       XDB.Connections.set(this.name, this);
       this.open().subscribe({
         next() {
@@ -320,7 +323,7 @@ export class XDB {
           this.keepAlive || this.close();
           this._readySub.next(true);
         },
-        error(err) { console.log(err) }
+        error(err) { throw err }
       });
     }
   }
