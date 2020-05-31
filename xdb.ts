@@ -332,8 +332,12 @@ export abstract class XDB {
   }
 
   get isOpen() { return this._open; }
+  get healthy() { return this._healthySub.getValue(); }
   get version() { return this._v; }
-  set version(val: number) { this._v = val; }
+  set version(val: number) {
+    this._v = val;
+    this.open().subscribe();
+  }
 
   abstract onupgrade(oldVersion: number): void;
   abstract onerror(err: any): void;
@@ -409,7 +413,7 @@ export abstract class XDB {
 
     if (keyPath) store = new ListStore<any>(this, name, keyPath);
     else store = new Store(this, name);
-  
+
     this._stores.set(name, store);
   }
 
@@ -417,8 +421,18 @@ export abstract class XDB {
     this._db.deleteObjectStore(name);
   }
 
-  store<T = any>(name: string): Store | ListStore<T> {
-    return this._stores.get(name);
+  store<T = any>(name: string, keyPath?: string): Observable<Store | ListStore<T>> {
+    let store = this._stores.get(name);
+    if (store) return of(store);
+
+    return this.open()
+      .pipe(switchMap(() => {
+        if (!this._db.objectStoreNames.contains(name)) return of(null);
+
+        store = keyPath ? new ListStore<T>(this, name, keyPath) : new Store(this, name);
+        this._stores.set(name, store);
+        return of(store);
+      }));
   }
 
   transaction(storeNames: string | string[], mode?: IDBTransactionMode) {
