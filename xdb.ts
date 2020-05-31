@@ -326,7 +326,6 @@ export class XDB {
     } else {
       XDB.Connections.set(this.name, this);
       this.open().subscribe(() => {
-        this._open = true;
         this.keepAlive || this.close();
         this._healthySub.next(true);
       }, () => this._healthySub.next(false))
@@ -345,7 +344,7 @@ export class XDB {
 
   open() {
     return new Observable<boolean>(subscriber => {
-      if (this.open) {
+      if (this._db && this._open) {
         subscriber.next(true);
         subscriber.complete();
         return;
@@ -355,23 +354,23 @@ export class XDB {
       let self = this;
 
       req.onsuccess = function (e: Event) {
-        self._db = req.result;
         self._open = true;
+        self._db = req.result;
         subscriber.next(true);
         subscriber.complete();
       }
 
       req.onerror = function (e: Event) {
+        self._open = false;
         subscriber.error({ name: `error opening ${self.name} db`, error: req.error });
         self._errorSub.next({ name: `error opening ${self.name} db`, error: req.error });
-        self._open = false;
         subscriber.complete();
       }
 
       req.onblocked = function () {
+        self._open = false;
         subscriber.error({ name: `db ${self.name} is blocked` });
         self._blockSub.next();
-        self._open = false;
         subscriber.complete();
       }
 
@@ -382,7 +381,8 @@ export class XDB {
   }
 
   close() {
-    this._db.close();
+    this._db && this._db.close();
+    this._db = null;
     this._open = false;
   }
 
