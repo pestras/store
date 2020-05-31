@@ -372,6 +372,7 @@ export abstract class XDB {
       }
 
       req.onupgradeneeded = function (e) {
+        self._db = req.result;
         self.onupgrade(e.oldVersion);
       }
     });
