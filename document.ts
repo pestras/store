@@ -3,6 +3,7 @@ import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Store } from "./xdb";
 import { filter, take, switchMap, map, tap } from "rxjs/operators";
 import { getValue } from '@pestras/toolbox/object/get-value';
+import { omit } from '@pestras/toolbox/object/omit';
 
 export enum SYNC_MODE {
   NONE = 0,
@@ -25,7 +26,7 @@ export class Document<T = any> {
   readonly data$ = this._dataSub.asObservable();
   readonly ready$ = this._readySub.pipe(filter(synced => synced), take(1));
 
-  constructor(store?: Store) {
+  constructor(store?: Store, readonly publishAfterStoreSync = false) {
     if (store) {
       this._store = store;
 
@@ -55,24 +56,33 @@ export class Document<T = any> {
     let curr = this._dataSub.getValue();
     let isNew = !curr;
     Object.assign(curr || {}, data);
-    this._dataSub.next(curr);
-    if (this._store) this._store.update(this.storeKey, curr).subscribe(() => cb && cb(curr));
+    !this.publishAfterStoreSync && this._dataSub.next(curr);
+    if (this._store) this._store.update(this.storeKey, curr).subscribe(() => {
+      this.publishAfterStoreSync && this._dataSub.next(curr);
+      cb && cb(curr);
+    });
     return this;
   }
 
-  protected remove(key: keyof T, cb?: (data?: T) => void): Document<T> {
+  protected remove(keyPaths: string[], cb?: (data?: T) => void): Document<T> {
     let data = this._dataSub.getValue();
     if (!data) return this;
-    delete data[key];
-    this._dataSub.next(data);
-    if (this._store) this._store.update(this.storeKey, data).subscribe(() => cb && cb(data));
+    omit(data, keyPaths);
+    !this.publishAfterStoreSync && this._dataSub.next(data);
+    if (this._store) this._store.update(this.storeKey, data).subscribe(() => {
+      this.publishAfterStoreSync && this._dataSub.next(data);
+      cb && cb(data);
+    });
     return this;
   }
 
   protected clear(cb?: () => void): Document<T> {
     if (this._dataSub.getValue() === null) return this;
-    this._dataSub.next(null);
-    if (this._store) this._store.delete(this.storeKey).subscribe(() => cb && cb());
+    !this.publishAfterStoreSync && this._dataSub.next(null);
+    if (this._store) this._store.delete(this.storeKey).subscribe(() => {
+      this.publishAfterStoreSync && this._dataSub.next(null);
+      cb && cb();
+    });
     return this;
   }
 
