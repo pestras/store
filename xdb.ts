@@ -325,14 +325,11 @@ export class XDB {
       return db;
     } else {
       XDB.Connections.set(this.name, this);
-      this.open().subscribe({
-        next() {
-          this._open = true;
-          this.keepAlive || this.close();
-          this._healthySub.next(true);
-        },
-        error() { this._healthySub.next(false); }
-      });
+      this.open().subscribe(() => {
+        this._open = true;
+        this.keepAlive || this.close();
+        this._healthySub.next(true);
+      }, () => this._healthySub.next(false))
     }
   }
 
