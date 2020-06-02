@@ -342,8 +342,8 @@ export abstract class XDB {
   abstract onblock(): void;
 
   open() {
-    this._requests++;
     return new Observable<void>(subscriber => {
+      this._requests++;
       if (this._db && this._open) {
         subscriber.next();
         subscriber.complete();

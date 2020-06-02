@@ -404,23 +404,18 @@ export class Collection<T, U = { [key: string]: any }> {
 
   protected link(db?: XDB, mode = SYNC_MODE.PULL) {
     if (!db) {
-      if (this._ustore) {
-        this._store = this._ustore;
-        this._ustore = null;
-        return this.sync(mode);
-      }
+      if (this._ustore) this._store = this._ustore;
 
     } else {
-      this._ustore = null;
       this._readySub.next(false);
       this._store = this._ustore = null;
       this.clear();
       this._db = db;
       this._store = new ListStore<Doc<T,U>>(this._db, this.constructor.name, 'id');
-      return this._store.ready$.pipe(tap(() => !!mode && this.sync(mode)));
     }
 
-    return empty();
+    this._ustore = null;    
+    return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : empty();
   }
 
   protected unlink(clear = true) {

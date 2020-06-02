@@ -104,17 +104,11 @@ export class Document<T = any> {
   }
 
   protected link(store?: Store, mode = SYNC_MODE.PULL) {
-    if (!store) {
-      this._store = this._uStore || null;
-      this._uStore = null;
-      if (this._store) return this.sync(mode);
-      return empty();
-    } else {
-      this._uStore = null;
-      this._store = store;
-      return this._store.ready$.pipe(tap(() => !!mode && this.sync(mode)))
-    }
-
+    if (!store) this._store = this._uStore || null;
+    else this._store = store;
+    
+    this._uStore = null;
+    return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : empty();
   }
 
   protected unlink(clear = true) {
