@@ -66,7 +66,7 @@ export class Store {
           let req: IDBRequest;
 
           if (this.hasKey(key)) req = os.put(doc, key);
-          else if (upsert) os.add(doc, key);
+          else if (upsert) req = os.add(doc, key);
           else {
             subscriber.next(single ? true : trans);
             subscriber.complete();
@@ -202,7 +202,7 @@ export class ListStore<T> extends Store {
           doc[<string>this.keyPath] = key;
 
           if (this.hasKey(key)) req = os.put(doc);
-          else if (upsert) os.add(doc);
+          else if (upsert) req = os.add(doc);
           else {
             subscriber.next(single ? true : trans);
             single && !this._db.keepAlive && this._db.close();
