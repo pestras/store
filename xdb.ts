@@ -1,5 +1,5 @@
 import { Observable, of, BehaviorSubject, throwError, Subscriber, onErrorResumeNext, Subject } from "rxjs";
-import { filter, map, switchMap, distinctUntilChanged } from "rxjs/operators";
+import { filter, map, switchMap, distinctUntilChanged, tap } from "rxjs/operators";
 
 export class Store {
   protected _keys = new Set<IDBValidKey>();
@@ -15,13 +15,13 @@ export class Store {
       let self = this;
       let req = trans.objectStore(this.name).getAllKeys();
       req.onsuccess = function () {
+        self._db.close();
         self._keys = new Set(req.result);
         self._readySub.next(true);
-        self._db.keepAlive || self._db.close();
       };
       req.onerror = function () {
+        self._db.close();
         console.log(req.error);
-        self._db.keepAlive || self._db.close();
       }
     });
   }
@@ -38,13 +38,13 @@ export class Store {
           let req = trans.objectStore(this.name).get(id);
 
           req.onsuccess = function () {
+            self._db.close();
             subscriber.next(req.result);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
           req.onerror = function () {
+            self._db.close();
             subscriber.error(req.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -66,6 +66,7 @@ export class Store {
           if (this.hasKey(key)) req = os.put(doc, key);
           else if (upsert) req = os.add(doc, key);
           else {
+            single && this._db.close();
             subscriber.next(single ? undefined : trans);
             subscriber.complete();
           }
@@ -73,15 +74,15 @@ export class Store {
           if (!single) return subscriber.next(trans);
 
           req.onsuccess = function () {
-            self._keys.add(key);
-            self._db.keepAlive || self._db.close();
             subscriber.next();
+            self._keys.add(key);
+            self._db.close();
             subscriber.complete();
           };
 
           req.onerror = function () {
+            self._db.close();
             subscriber.error(req.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -103,15 +104,15 @@ export class Store {
           if (!single) return subscriber.next(trans);
 
           req.onsuccess = function () {
+            self._db.close();
             self._keys.delete(key);
-            self._db.keepAlive || self._db.close();
             subscriber.next();
             subscriber.complete();
           };
 
           req.onerror = function () {
+            self._db.close();
             subscriber.error(req.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -132,15 +133,15 @@ export class Store {
           if (!single) return subscriber.next(trans);
 
           req.onsuccess = function () {
+            self._db.close();
             self._keys.clear();
-            self._db.keepAlive || self._db.close();
             subscriber.next();
             subscriber.complete();
           };
 
           req.onerror = function () {
+            self._db.close();
             subscriber.error(req.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -168,14 +169,14 @@ export class ListStore<T> extends Store {
           let req = trans.objectStore(this.name).getAll();
 
           req.onsuccess = function () {
+            self._db.close();
             subscriber.next(req.result);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
 
           req.onerror = function () {
+            self._db.close();
             subscriber.error(req.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -198,8 +199,8 @@ export class ListStore<T> extends Store {
           if (this.hasKey(key)) req = os.put(doc);
           else if (upsert) req = os.add(doc);
           else {
+            single && this._db.close();
             subscriber.next(single ? undefined : trans);
-            single && !this._db.keepAlive && this._db.close();
             subscriber.complete();
           }
 
@@ -207,14 +208,14 @@ export class ListStore<T> extends Store {
 
           req.onsuccess = function () {
             self._keys.add(key);
+            self._db.close();
             subscriber.next();
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
 
           req.onerror = function () {
+            self._db.close();
             subscriber.error(req.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -238,14 +239,14 @@ export class ListStore<T> extends Store {
           let self = this;
           trans.oncomplete = function () {
             if (upsert) for (let doc of docs) self._keys.add(doc[<string>self.keyPath]);
+            self._db.close();
             subscriber.next();
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
 
           trans.onerror = function () {
+            self._db.close();
             subscriber.error(trans.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -269,14 +270,14 @@ export class ListStore<T> extends Store {
 
           trans.oncomplete = function () {
             for (let key of keys) self._keys.delete(key);
+            self._db.close();
             subscriber.next();
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
 
           trans.onerror = function () {
+            self._db.close();
             subscriber.error(trans.error);
-            self._db.keepAlive || self._db.close();
             subscriber.complete();
           }
         });
@@ -289,6 +290,7 @@ export interface XDBOptions {
 }
 
 export abstract class XDB {
+  private _requests = 0;
   protected _stores = new Map<string, Store | ListStore<any>>();
   protected _open = false;
   protected _healthySub = new BehaviorSubject<boolean>(null);
@@ -299,7 +301,7 @@ export abstract class XDB {
 
   private static Connections = new Map<string, XDB>();
 
-  constructor(readonly name: string, protected _v: number = 1, readonly keepAlive = false) {
+  constructor(readonly name: string, protected _v: number = 1) {
     if (!XDB.Supported) {
       this._healthySub.next(false);
       this.onerror(new Error('indexeddb not supported'));
@@ -311,16 +313,20 @@ export abstract class XDB {
     } else {
       XDB.Connections.set(this.name, this);
       this.open().subscribe(() => {
-        this.keepAlive || this.close();
+        this.close();
         this._healthySub.next(true);
-      }, () => this._healthySub.next(false))
+      }, () => this._healthySub.next(false));
     }
   }
 
   static get Supported() { return !!window.indexedDB; }
 
-  static CloseAll() {
-    for (let db of XDB.Connections.values()) db.close();
+  static CloseAll(force = false) {
+    for (let db of XDB.Connections.values()) db.close(force);
+  }
+
+  static DropAll() {
+    for (let db of XDB.Connections.values()) db.drop();
   }
 
   get isOpen() { return this._open; }
@@ -336,6 +342,7 @@ export abstract class XDB {
   abstract onblock(): void;
 
   open() {
+    this._requests++;
     return new Observable<void>(subscriber => {
       if (this._db && this._open) {
         subscriber.next();
@@ -374,14 +381,24 @@ export abstract class XDB {
     });
   }
 
-  close() {
-    this._db && this._db.close();
-    this._db = null;
-    this._open = false;
+  close(force = false) {
+    if (force) {
+      this._requests = 0
+      this._db && this._db.close();
+      this._db = null;
+      this._open = false;
+    } else {
+      this._requests = this._requests === 0 ? 0 : this._requests - 1;
+      if (this._requests === 0 && this._db) {
+        this._db.close();
+        this._db = null;
+        this._open = false;
+      }
+    }
   }
 
   drop() {
-    this.close();
+    this.close(true);
     XDB.Connections.delete(this.name);
     return new Observable<void>(subscriber => {
       let req = indexedDB.deleteDatabase(name);
@@ -424,7 +441,7 @@ export abstract class XDB {
         store = keyPath ? new ListStore<T>(this, name, keyPath) : new Store(this, name);
         this._stores.set(name, store);
         return of(store);
-      }));
+      }), tap(() => this.close()));
   }
 
   transaction(storeNames: string | string[], mode?: IDBTransactionMode) {
@@ -438,15 +455,17 @@ export abstract class XDB {
         return source.subscribe({
           next(trans) {
             trans.oncomplete = function () {
+              self.close();
               subscriber.next();
-              self.keepAlive || self.close();
               subscriber.complete();
             }
             trans.onerror = function () {
+              self.close();
               subscriber.error(trans.error);
               subscriber.complete();
             }
             trans.onabort = function () {
+              self.close();
               subscriber.error('aborted');
               subscriber.complete();
             }
