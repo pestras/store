@@ -8,10 +8,10 @@ import { SYNC_MODE } from "./document";
 
 export interface CollectionOptions<U = { [key: string]: any }> {
   publishAfterStoreSync?: boolean;
-  defaultState?: U;
+  defaultStateFac?: () => U;
 }
 
-export class Doc<T, U> {
+export class Doc<T, U = { [key: string]: any }> {
   constructor(
     public id: IDBValidKey,
     public doc: T,
@@ -27,7 +27,7 @@ export class Collection<T, U = { [key: string]: any }> {
   private _ustore: ListStore<Doc<T, U>>;
   private _db: XDB;
   private _store: ListStore<Doc<T, U>>;
-  private _dState: U;
+  private _dStateFac: () => U;
   private _loadingSub = new BehaviorSubject<boolean>(true);
   private _publishAfterStoreSync: boolean;
 
@@ -39,7 +39,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
   constructor(keyPath: string, db?: XDB, options?: CollectionOptions<U>) {
     this._id = keyPath;
-    this._dState = options.defaultState;
+    this._dStateFac = options.defaultStateFac;
     this._publishAfterStoreSync = !!options.publishAfterStoreSync;
     this._db = db || null;
 
@@ -136,7 +136,7 @@ export class Collection<T, U = { [key: string]: any }> {
     this._activeSub.next(id ? this.map.get(id) : null);
   }
 
-  protected insert(entry: T, state = this._dState, overwrite = false, cb?: (doc: Doc<T, U>) => void): void {
+  protected insert(entry: T, state?: U, overwrite = false, cb?: (doc: Doc<T, U>) => void): void {
     let map = this.map;
 
     if (map.has(entry[this._id]) && !overwrite) {
@@ -144,7 +144,7 @@ export class Collection<T, U = { [key: string]: any }> {
       return;
     }
 
-    let doc = new Doc<T, U>(entry[this._id], entry, state || this._dState);
+    let doc = new Doc<T, U>(entry[this._id], entry, state || this._dStateFac());
     this.map.set(entry[this._id], doc);
 
     if (!this._publishAfterStoreSync || !this._store) {
@@ -158,13 +158,13 @@ export class Collection<T, U = { [key: string]: any }> {
     });
   }
 
-  protected insertMany(entries: T[], state = this._dState, overwrite = false, cb?: (data: Doc<T, U>[]) => void): void {
+  protected insertMany(entries: T[], state?: U, overwrite = false, cb?: (data: Doc<T, U>[]) => void): void {
     let map = this.map;
     let inserted: Doc<T, U>[] = [];
 
     for (let entry of entries) {
       if (map.has(entry[this._id]) && !overwrite) continue;
-      let doc = new Doc<T, U>(entry[this._id], entry, state || this._dState);
+      let doc = new Doc<T, U>(entry[this._id], entry, state || this._dStateFac());
       this.map.set(entry[this._id], doc)
       inserted.push(doc);
     };
@@ -211,7 +211,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
   protected updateMany(ids: IDBValidKey[], update: Partial<T>, state?: U, cb?: (updated: Doc<T, U>[]) => void): void
   protected updateMany(filter: (doc: Doc<T, U>) => boolean, update: Partial<T>, state?: U, cb?: (updated: Doc<T, U>[]) => void): void
-  protected updateMany(filter: IDBValidKey[] | ((doc: Doc<T, U>) => boolean), update: Partial<T>, state = this._dState, cb?: (updated: Doc<T, U>[]) => void): void {
+  protected updateMany(filter: IDBValidKey[] | ((doc: Doc<T, U>) => boolean), update: Partial<T>, state?: U, cb?: (updated: Doc<T, U>[]) => void): void {
     let map = this.map;
     let updated: Doc<T, U>[] = [];
 
@@ -279,7 +279,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
   protected replaceOne(entry: T, state?: U, upsert = false, cb?: (oldDoc: Doc<T, U>, newDoc: Doc<T, U>) => void): void {
     let map = this.map;
-    let newDoc = new Doc(entry[this._id], entry, state || this._dState);
+    let newDoc = new Doc(entry[this._id], entry, state || this._dStateFac());
 
     if (!map.has(newDoc.id) && !upsert) {
       cb && cb(null, null);
@@ -301,7 +301,7 @@ export class Collection<T, U = { [key: string]: any }> {
   }
 
   protected replaceAll(entries: T[], state?: U, cb?: (docs: Doc<T, U>[]) => void): void {
-    let docs = entries.map(entry => new Doc(entry[this._id], entry, state || this._dState));
+    let docs = entries.map(entry => new Doc(entry[this._id], entry, state || this._dStateFac()));
     let map = this.docsToMap(docs);
 
     if (!this._publishAfterStoreSync || !this._store) {
