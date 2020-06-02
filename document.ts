@@ -59,7 +59,7 @@ export class Document<T = any> {
       this._dataSub.next(curr);
       (!this._store && cb) && cb(curr);
     }
-    if (this._store) this._store.update(this.storeKey, curr).subscribe(() => {
+    if (this._store) this._store.update(this.storeKey, curr, true).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(curr);
       cb && cb(curr);
     });
@@ -95,30 +95,26 @@ export class Document<T = any> {
   }
 
   protected sync(mode = SYNC_MODE.PULL) {
-    if (!this._store) return empty();
+    if (!this._store || !mode) return empty();
 
-    if (mode === SYNC_MODE.PULL)
-      return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(data)));
-    else if (mode === SYNC_MODE.MERGE_PULL)
-      return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(Object.assign(this.get() || {}, data || <any>{}))));
-    else if (mode === SYNC_MODE.MERGE_PUSH)
-      return this._store.get<T>(this.storeKey).pipe(switchMap(data => this._store.update(this.storeKey, Object.assign(this.get() || {}, data || <any>{}))));
-    else 
-      return this._store.update(this.storeKey, this.get());
+    if (mode === SYNC_MODE.PULL) return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(data)));
+    if (mode === SYNC_MODE.MERGE_PULL) return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(Object.assign(this.get() || {}, data || <any>{}))));
+    if (mode === SYNC_MODE.MERGE_PUSH) return this._store.get<T>(this.storeKey).pipe(switchMap(data => this._store.update(this.storeKey, Object.assign(this.get() || {}, data || <any>{}))));
+    return this._store.update(this.storeKey, this.get());
   }
 
-  protected link(store?: Store, mode = SYNC_MODE.MERGE_PULL) {
+  protected link(store?: Store, mode = SYNC_MODE.PULL) {
     if (!store) {
       this._store = this._uStore || null;
       this._uStore = null;
       if (this._store) return this.sync(mode);
+      return empty();
     } else {
       this._uStore = null;
       this._store = store;
       return this._store.ready$.pipe(tap(() => !!mode && this.sync(mode)))
     }
 
-    return empty();
   }
 
   protected unlink(clear = true) {
