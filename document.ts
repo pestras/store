@@ -53,15 +53,15 @@ export class Document<T = any> {
 
   protected update(data: Partial<T>, cb?: (data?: T) => void): Document<T> {
     if (!data) return this;
-    let curr = this._dataSub.getValue();
-    let isNew = !curr;
-    Object.assign(curr || {}, data);
+    let curr = this._dataSub.getValue() || <T>{};
+    Object.assign(curr, data);
     if (!this.publishAfterStoreSync || !this._store) {
       this._dataSub.next(curr);
-      cb && cb(curr);
+      (!this._store && cb) && cb(curr);
     }
     if (this._store) this._store.update(this.storeKey, curr).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(curr);
+      cb && cb(curr);
     });
     return this;
   }
@@ -72,7 +72,7 @@ export class Document<T = any> {
     omit(data, keyPaths);
     if (!this.publishAfterStoreSync || !this._store) {
       this._dataSub.next(data);
-      cb && cb(data);
+      (!this._store && cb) && cb(data);
     }
     if (this._store) this._store.update(this.storeKey, data).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(data);
@@ -85,7 +85,7 @@ export class Document<T = any> {
     if (this._dataSub.getValue() === null) return this;
     if (!this.publishAfterStoreSync || !this._store) {
       this._dataSub.next(null);
-      cb && cb();
+      (!this._store && cb) && cb();
     }
     if (this._store) this._store.delete(this.storeKey).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(null);

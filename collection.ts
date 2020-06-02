@@ -149,7 +149,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(doc);
+      (!this._store && cb)  && cb(doc);
     }
 
     if (this._store) this._store.update(doc.id, doc).subscribe(() => {
@@ -170,7 +170,7 @@ export class Collection<T, U = { [key: string]: any }> {
     };
 
     if (inserted.length === 0) {
-      cb && cb([]);
+      (!this._store && cb)  && cb([]);
       return;
     }
 
@@ -200,7 +200,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(doc)
+      (!this._store && cb) && cb(doc)
     }
 
     if (this._store) this._store.update(id, doc, false).subscribe(() => {
@@ -241,7 +241,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(updated);
+      (!this._store && cb) && cb(updated);
     }
 
     if (this._store) this._store.updateMany(updated, false).subscribe(() => {
@@ -268,7 +268,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(updated);
+      (!this._store && cb) && cb(updated);
     }
 
     if (this._store) this._store.updateMany(updated, false).subscribe(() => {
@@ -291,7 +291,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(oldDoc, newDoc);
+      (!this._store && cb) && cb(oldDoc, newDoc);
     }
 
     if (this._store) this._store.update(newDoc.id, newDoc, true).subscribe(() => {
@@ -306,7 +306,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(docs);
+      (!this._store && cb) && cb(docs);
     }
 
     if (this._store) this._store.updateMany(docs, true).subscribe(() => {
@@ -326,7 +326,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(doc);
+      (!this._store && cb) && cb(doc);
     }
 
     if (this._store) this._store.delete(id).subscribe(() => {
@@ -358,7 +358,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      cb && cb(removed);
+      (!this._store && cb) && cb(removed);
     }
 
     if (this._store) this._store.deleteMany(removed.map(doc => doc.id)).subscribe(() => {
@@ -372,7 +372,7 @@ export class Collection<T, U = { [key: string]: any }> {
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
       this._activeSub.next(null);
-      cb && cb();
+      (!this._store && cb) && cb();
     }
 
     if (this._store) this._store.clear().subscribe(() => {
