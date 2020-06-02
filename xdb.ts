@@ -1,5 +1,5 @@
 import { Observable, of, BehaviorSubject, throwError, Subscriber, onErrorResumeNext, Subject } from "rxjs";
-import { filter, map, switchMap, distinctUntilChanged, tap } from "rxjs/operators";
+import { filter, map, switchMap, distinctUntilChanged, tap, delayWhen } from "rxjs/operators";
 
 export class Store {
   protected _keys = new Set<IDBValidKey>();
@@ -432,7 +432,7 @@ export abstract class XDB {
 
   store<T = any>(name: string, keyPath?: string): Observable<Store | ListStore<T>> {
     let store = this._stores.get(name);
-    if (store) return of(store);
+    if (store) return of(store).pipe(delayWhen(() => store.ready$));
 
     return this.open()
       .pipe(switchMap(() => {
@@ -440,7 +440,7 @@ export abstract class XDB {
 
         store = keyPath ? new ListStore<T>(this, name, keyPath) : new Store(this, name);
         this._stores.set(name, store);
-        return of(store);
+        return of(store).pipe(delayWhen(() => store.ready$));
       }), tap(() => this.close()));
   }
 
