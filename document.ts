@@ -107,12 +107,12 @@ export class Document<T = any> {
       return this._store.update(this.storeKey, this.get());
   }
 
-  protected link(store?: Store, key: string = this.storeKey, mode = SYNC_MODE.MERGE_PULL) {
+  protected link(store?: Store, mode = SYNC_MODE.MERGE_PULL) {
     if (!store) {
       this._store = this._uStore || null;
       this._uStore = null;
       if (this._store) return this.sync(mode);
-    } else if (store && (key || this.storeKey)) {
+    } else {
       this._uStore = null;
       this._store = store;
       return this._store.ready$.pipe(tap(() => !!mode && this.sync(mode)))
