@@ -153,10 +153,6 @@ export class ListStore<T> extends Store {
 
   constructor(_db: XDB, name: string, readonly keyPath: IDBValidKey) {
     super(_db, name);
-
-    this._db.transaction(this.name).subscribe(trans => {
-      trans.objectStore(this.name).createIndex(<string>this.keyPath, <string>this.keyPath, { unique: true });
-    })
   }
 
   get<U = T>(id: IDBValidKey) { return super.get<U>(id); }
