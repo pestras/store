@@ -1,4 +1,4 @@
-import { BehaviorSubject, Observable, empty, of } from "rxjs";
+import { BehaviorSubject, Observable, of } from "rxjs";
 import { filterNil } from "./operators/filterNil";
 import { map, filter, switchMap, tap } from "rxjs/operators";
 import { ListStore, XDB } from "./xdb";

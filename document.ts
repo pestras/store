@@ -1,4 +1,4 @@
-import { BehaviorSubject, empty } from "rxjs";
+import { BehaviorSubject, of } from "rxjs";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Store } from "./xdb";
 import { filter, switchMap, map, tap } from "rxjs/operators";
@@ -95,7 +95,7 @@ export class Document<T = any> {
   }
 
   protected sync(mode = SYNC_MODE.PULL) {
-    if (!this._store || !mode) return empty();
+    if (!this._store || !mode) return of(null);
 
     if (mode === SYNC_MODE.PULL) return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(data)));
     if (mode === SYNC_MODE.MERGE_PULL) return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(Object.assign(this.get() || {}, data || <any>{}))));
@@ -108,7 +108,7 @@ export class Document<T = any> {
     else this._store = store;
     
     this._uStore = null;
-    return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : empty();
+    return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : of(null);
   }
 
   protected unlink(clear = true) {
