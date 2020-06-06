@@ -45,8 +45,11 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._db) this._readySub.next(true);
     else {
-      this._store = new ListStore<Doc<T, U>>(this._db, this.constructor.name, 'id');
-      this._store.ready$.pipe(switchMap(() => this._store.getAll()))
+      this._db.store(this.constructor.name, 'id')
+        .pipe(
+          tap(store => this._store = <ListStore<Doc<T,U>>>store),
+          switchMap(() => this._store.getAll())
+        )
         .subscribe(data => {
           this._dataSub.next(this.docsToMap(data));
           this._readySub.next(true);
@@ -149,7 +152,7 @@ export class Collection<T, U = { [key: string]: any }> {
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      (!this._store && cb)  && cb(doc);
+      (!this._store && cb) && cb(doc);
     }
 
     if (this._store) this._store.update(doc.id, doc).subscribe(() => {
@@ -170,7 +173,7 @@ export class Collection<T, U = { [key: string]: any }> {
     };
 
     if (inserted.length === 0) {
-      (!this._store && cb)  && cb([]);
+      (!this._store && cb) && cb([]);
       return;
     }
 
@@ -386,7 +389,7 @@ export class Collection<T, U = { [key: string]: any }> {
   }
 
   protected sync(mode = SYNC_MODE.PULL) {
-    if (this._store || mode === SYNC_MODE.NONE) return empty();
+    if (!this._store || mode === SYNC_MODE.NONE) return of([]);
     if (mode === SYNC_MODE.PULL) return this._store.getAll().pipe(map(data => this._dataSub.next(this.docsToMap(data))));
     if (mode === SYNC_MODE.MERGE_PULL) {
       return this._store.getAll().pipe(
@@ -395,7 +398,7 @@ export class Collection<T, U = { [key: string]: any }> {
           for (let doc of docs) map.set(doc.id, doc);
           this._dataSub.next(map);
         })
-      );    
+      );
     }
 
     if (mode === SYNC_MODE.MERGE_PUSH) return this._store.updateMany(this.docs);
@@ -404,22 +407,21 @@ export class Collection<T, U = { [key: string]: any }> {
 
   protected link(db?: XDB, mode = SYNC_MODE.PULL) {
     if (!db) {
-      if (this._ustore) this._store = this._ustore;
-
-    } else {
-      this._readySub.next(false);
-      this._store = this._ustore = null;
-      this.clear();
-      this._db = db;
-      this._store = new ListStore<Doc<T,U>>(this._db, this.constructor.name, 'id');
+      this._store = this._ustore || null;
+      this._ustore = null;
+      return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : of([]);
     }
 
-    this._ustore = null;    
-    return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : empty();
+    this._readySub.next(false);
+    this._store = this._ustore = null;
+    this.clear();
+    this._db = db;
+    this._store = new ListStore<Doc<T, U>>(this._db, this.constructor.name, 'id');
+    return db.store(this.constructor.name, 'id').pipe(tap(store => this._store = <ListStore<Doc<T, U>>>store), switchMap(() => this.sync(mode)));
   }
 
   protected unlink(clear = true) {
-     this._ustore = this._store;
+    this._ustore = this._store;
     this._store = null;
     this._db = null;
     if (clear) this.clear();
