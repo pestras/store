@@ -1,19 +1,30 @@
-import { BehaviorSubject, Observable, of } from "rxjs";
+import { BehaviorSubject, Observable, of, combineLatest } from "rxjs";
 import { filterNil } from "./operators/filterNil";
 import { map, filter, switchMap, tap } from "rxjs/operators";
 import { ListStore, XDB } from "./xdb";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { distinctUntilArrChanged } from "./operators/distinctUntilArrChanged";
-import { SYNC_MODE } from "./document";
+import { SYNC_MODE, Document } from "./document";
 
 export interface CollectionOptions<U = { [key: string]: any }> {
   publishAfterStoreSync?: boolean;
   defaultStateFac?: () => U;
 }
 
+export class ActiveDocumnet<T> extends Document<T> {
+  constructor(observable$: Observable<Partial<T>>) {
+    super();
+
+    observable$.subscribe(data => {
+      if (data) this.update(data);
+      else this.clear();
+    });
+  }
+}
+
 export class Collection<T> {
   private _dataSub = new BehaviorSubject<Map<IDBValidKey, T>>(null);
-  private _activeSub = new BehaviorSubject<T>(null);
+  private _activeSub = new BehaviorSubject<IDBValidKey>(null);
   private _readySub = new BehaviorSubject<boolean>(false);
   private _ustore: ListStore<T>;
   private _store: ListStore<T>;
@@ -22,8 +33,8 @@ export class Collection<T> {
   readonly docs$ = this._dataSub.pipe(filterNil(), map(data => this.toArray(data)));
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0));
   readonly loading$ = this._loadingSub.asObservable();
-  readonly active$ = this._activeSub.asObservable();
   readonly ready$ = this._readySub.pipe(filter(ready => ready));
+  readonly active = new ActiveDocumnet<T>(combineLatest(this._activeSub, this._dataSub).pipe(switchMap(([id]) => this.select(id))));
 
   constructor(readonly keyPath: string, private _db: XDB = null, private _publishAfterStoreSync = true) {
     if (!this._db) this._readySub.next(true);
@@ -53,7 +64,6 @@ export class Collection<T> {
   get ready() { return this._readySub.getValue(); }
   get docs() { return this.toArray(this.map); }
   get count() { return this.map.size; }
-  get active() { return this._activeSub.getValue(); }
 
   protected set loading(val: boolean) { this._loadingSub.next(val); }
 
@@ -119,7 +129,7 @@ export class Collection<T> {
   }
 
   protected setActive(id?: IDBValidKey): void {
-    this._activeSub.next(id ? this.map.get(id) : null);
+    this._activeSub.next(id);
   }
 
   protected insert(doc: T, overwrite = false, cb?: (doc: T) => void): void {
@@ -129,7 +139,7 @@ export class Collection<T> {
       cb && cb(null);
       return;
     }
-    
+
     this.map.set(doc[this.keyPath], doc);
 
     if (!this._publishAfterStoreSync || !this._store) {
@@ -323,15 +333,11 @@ export class Collection<T> {
     let map = new Map<IDBValidKey, T>();
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
-      this._activeSub.next(null);
       (!this._store && cb) && cb();
     }
 
     if (this._store) this._store.clear().subscribe(() => {
-      if (this._publishAfterStoreSync) {
-        this._dataSub.next(map);
-        this._activeSub.next(null);
-      }
+      if (this._publishAfterStoreSync) this._dataSub.next(map);
 
       cb && cb();
     });
@@ -376,3 +382,5 @@ export class Collection<T> {
     return this;
   }
 }
+
+let col = new Collection('_id');
