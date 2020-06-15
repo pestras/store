@@ -113,7 +113,7 @@ export class Collection<T> {
   select(filter: IDBValidKey | ((doc: T) => boolean), keys?: string[]) {
     let root$: Observable<T>;
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => { for (let doc of docs) if (filter(doc)) return doc }));
-    else root$ = this._dataSub.pipe(map(m => m.get(filter)));
+    else root$ = this._dataSub.pipe(map(m => this.get(filter)));
 
     return root$.pipe(distinctUntilObjChanged(keys));
   }
@@ -123,7 +123,7 @@ export class Collection<T> {
   selectMany(filter: IDBValidKey[] | ((doc: T) => boolean), keys?: string[]) {
     let root$: Observable<T[]>;
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => docs.filter(doc => filter(doc))));
-    else root$ = this._dataSub.pipe(map(m => filter.map(id => m.get(id)).filter(doc => !!doc)));
+    else root$ = this._dataSub.pipe(map(m => filter.map(id => this.get(id)).filter(doc => !!doc)));
 
     return root$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, <string[]>keys));
   }
