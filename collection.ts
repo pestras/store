@@ -263,6 +263,29 @@ export class Collection<T> {
     });
   }
 
+  protected replaceMany(docs: T[], upsert = false, cb?: (docs: T[]) => void) {
+    let map = this.map;
+    let replaced: T[] = [];
+
+    for (let doc of docs) {
+      let oldDoc = map.get(doc[this.keyPath]);
+      if (oldDoc || (!oldDoc && upsert)) {
+        map.set(doc[this.keyPath], doc);
+        replaced.push(doc);
+      }
+    }
+
+    if (!this._publishAfterStoreSync || !this._store) {
+      this._dataSub.next(map);
+      (!this._store && cb) && cb(docs);
+    }
+
+    if (this._store) this._store.updateMany(docs, true).subscribe(() => {
+      if (this._publishAfterStoreSync) this._dataSub.next(map);
+      cb && cb(docs);
+    });
+  }
+
   protected replaceAll(docs: T[], cb?: (docs: T[]) => void): void {
     let map = this.docsToMap(docs);
 
@@ -271,7 +294,7 @@ export class Collection<T> {
       (!this._store && cb) && cb(docs);
     }
 
-    if (this._store) this._store.updateMany(docs, true).subscribe(() => {
+    if (this._store) this._store.clear().pipe(switchMap(() => this._store.updateMany(docs, true))).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(docs);
     });
