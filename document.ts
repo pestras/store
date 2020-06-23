@@ -19,32 +19,29 @@ export enum SYNC_MODE {
 }
 
 export class Document<T = any> {
-  private _loadingSub = new BehaviorSubject<boolean>(true);
+  private _idleSub = new BehaviorSubject<boolean>(false);
   private _dataSub = new BehaviorSubject<T>(null);
-  private _readySub = new BehaviorSubject<boolean>(false);
   private _uStore: Store;
   private _store: Store;
 
-  readonly loading$ = this._loadingSub.asObservable();
-  readonly data$ = this._dataSub.pipe(gate(this.loading$, true));
-  readonly ready$ = this._readySub.pipe(filter(synced => synced));
+
+  readonly idle$ = this._idleSub.asObservable();
+  readonly data$ = this._dataSub.pipe(gate(this.idle$));
 
   constructor(store?: Store, readonly publishAfterStoreSync = false) {
     if (store) {
       this._store = store;
 
       this._store.ready$.pipe(switchMap(() => this._store.get<T>(this.storeKey)))
-        .subscribe(data => {
-          this._dataSub.next(data);
-          this._readySub.next(true);
-        });
-
-    } else this._readySub.next(true);
+        .subscribe(data => this._dataSub.next(data));
+    };
   }
 
-  get ready() { return this._readySub.getValue(); }
+  get isIdle() { return this._idleSub.getValue(); }
   get storeKey() { return this.constructor.name; }
   get linked() { return !!this._store; }
+
+  protected set idle(val: boolean) { this._idleSub.next(val); }
 
   get(): T;
   get(keyPath: string): any;
@@ -54,8 +51,6 @@ export class Document<T = any> {
   }
 
   watch(keyPaths: string[] = []) { return this._dataSub.pipe(distinctUntilObjChanged(keyPaths)); }
-
-  protected set loading(val: boolean) { this._loadingSub.next(val); }
 
   protected update(data: Partial<T>, cb?: (data?: T) => void): Document<T> {
     if (!data) return this;
