@@ -5,6 +5,7 @@ import { ListStore, XDB } from "./xdb";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { distinctUntilArrChanged } from "./operators/distinctUntilArrChanged";
 import { SYNC_MODE, Document } from "./document";
+import { gate } from "./operators/gate";
 
 export interface CollectionOptions<U = { [key: string]: any }> {
   publishAfterStoreSync?: boolean;
@@ -23,16 +24,16 @@ export class ActiveDocumnet<T> extends Document<T> {
 }
 
 export class Collection<T> {
+  private _loadingSub = new BehaviorSubject<boolean>(true);
   private _dataSub = new BehaviorSubject<Map<IDBValidKey, T>>(null);
   private _activeSub = new BehaviorSubject<IDBValidKey>(null);
   private _readySub = new BehaviorSubject<boolean>(false);
   private _ustore: ListStore<T>;
   private _store: ListStore<T>;
-  private _loadingSub = new BehaviorSubject<boolean>(true);
 
-  readonly docs$ = this._dataSub.pipe(filterNil(), map(data => this.toArray(data)));
-  readonly count$ = this._dataSub.pipe(map(data => data?.size || 0));
   readonly loading$ = this._loadingSub.asObservable();
+  readonly docs$ = this._dataSub.pipe(filterNil(), map(data => this.toArray(data)), gate(this.loading$, true));
+  readonly count$ = this._dataSub.pipe(map(data => data?.size || 0));
   readonly ready$ = this._readySub.pipe(filter(ready => ready));
   readonly active = new ActiveDocumnet<T>(combineLatest(this._activeSub, this._dataSub).pipe(switchMap(([id]) => this.select(id))));
 
@@ -64,6 +65,7 @@ export class Collection<T> {
   get ready() { return this._readySub.getValue(); }
   get docs() { return this.toArray(this.map); }
   get count() { return this.map.size; }
+  get linked() { return !!this._store; }
 
   protected set loading(val: boolean) { this._loadingSub.next(val); }
 
@@ -116,6 +118,16 @@ export class Collection<T> {
     else root$ = this._dataSub.pipe(map(m => this.get(filter)));
 
     return root$.pipe(distinctUntilObjChanged(keys));
+  }
+
+  has$(id: IDBValidKey, keys?: string[]): Observable<boolean>;
+  has$(filter: (doc: T) => boolean, keys?: string[]): Observable<boolean>;
+  has$(filter: IDBValidKey | ((doc: T) => boolean), keys?: string[]) {
+    let root$: Observable<T>;
+    if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => { for (let doc of docs) if (filter(doc)) return doc }));
+    else root$ = this._dataSub.pipe(map(m => this.get(filter)));
+
+    return root$.pipe(distinctUntilObjChanged(keys), map(doc => doc !== undefined));
   }
 
   selectMany(id: IDBValidKey[], keys?: string[]): Observable<T[]>;
@@ -384,6 +396,7 @@ export class Collection<T> {
   }
 
   protected link(db?: XDB, mode = SYNC_MODE.PULL) {
+    if (this._store) return;
     if (!db) {
       this._store = this._ustore || null;
       this._ustore = null;
@@ -397,11 +410,11 @@ export class Collection<T> {
     return db.store(this.constructor.name, this.keyPath).pipe(tap(store => this._store = <ListStore<T>>store), switchMap(() => this.sync(mode)));
   }
 
-  protected unlink(clear = true) {
+  protected unlink(clearCol = true) {
     this._ustore = this._store;
     this._store = null;
     this._db = null;
-    if (clear) this.clear();
+    if (clearCol) this.clear();
     return this;
   }
 }

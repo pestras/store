@@ -4,6 +4,7 @@ import { Store } from "./xdb";
 import { filter, switchMap, map, tap } from "rxjs/operators";
 import { getValue } from '@pestras/toolbox/object/get-value';
 import { omit } from '@pestras/toolbox/object/omit';
+import { gate } from "./operators/gate";
 
 export enum SYNC_MODE {
   NONE = 0,
@@ -18,12 +19,14 @@ export enum SYNC_MODE {
 }
 
 export class Document<T = any> {
+  private _loadingSub = new BehaviorSubject<boolean>(true);
   private _dataSub = new BehaviorSubject<T>(null);
   private _readySub = new BehaviorSubject<boolean>(false);
   private _uStore: Store;
   private _store: Store;
 
-  readonly data$ = this._dataSub.asObservable();
+  readonly loading$ = this._loadingSub.asObservable();
+  readonly data$ = this._dataSub.pipe(gate(this.loading$, true));
   readonly ready$ = this._readySub.pipe(filter(synced => synced));
 
   constructor(store?: Store, readonly publishAfterStoreSync = false) {
@@ -41,6 +44,7 @@ export class Document<T = any> {
 
   get ready() { return this._readySub.getValue(); }
   get storeKey() { return this.constructor.name; }
+  get linked() { return !!this._store; }
 
   get(): T;
   get(keyPath: string): any;
@@ -50,6 +54,8 @@ export class Document<T = any> {
   }
 
   watch(keyPaths: string[] = []) { return this._dataSub.pipe(distinctUntilObjChanged(keyPaths)); }
+
+  protected set loading(val: boolean) { this._loadingSub.next(val); }
 
   protected update(data: Partial<T>, cb?: (data?: T) => void): Document<T> {
     if (!data) return this;
@@ -104,6 +110,7 @@ export class Document<T = any> {
   }
 
   protected link(store?: Store, mode = SYNC_MODE.PULL) {
+    if (this._store) return;
     if (!store) this._store = this._uStore || null;
     else this._store = store;
     
@@ -111,10 +118,10 @@ export class Document<T = any> {
     return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : of(null);
   }
 
-  protected unlink(clear = true) {
+  protected unlink(clearDoc = true) {
     this._uStore = this._store;
     this._store = null;
-    !!clear && this.clear();
+    !!clearDoc && this.clear();
     return this;
   }
 }
