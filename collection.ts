@@ -126,9 +126,13 @@ export class Collection<T> {
     return root$.pipe(distinctUntilObjChanged(keys), map(doc => doc !== undefined));
   }
 
+  selectAll(keys: string[]): Observable<T[]> {
+    return this.docs$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, keys));
+  }
+  
   selectMany(id: IDBValidKey[], keys?: string[]): Observable<T[]>;
   selectMany(filter: (doc: T) => boolean, keys?: string[]): Observable<T[]>;
-  selectMany(filter: IDBValidKey[] | ((doc: T) => boolean), keys?: string[]) {
+  selectMany(filter?: IDBValidKey[] | ((doc: T) => boolean), keys?: string[]) {
     let root$: Observable<T[]>;
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => docs.filter(doc => filter(doc))));
     else root$ = this._dataSub.pipe(map(m => filter.map(id => this.get(id)).filter(doc => !!doc)));
@@ -148,7 +152,7 @@ export class Collection<T> {
       return;
     }
 
-    this.map.set(doc[this.keyPath], doc);
+    map.set(doc[this.keyPath], doc);
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
@@ -167,7 +171,7 @@ export class Collection<T> {
 
     for (let doc of docs) {
       if (map.has(doc[this.keyPath]) && !overwrite) continue;
-      this.map.set(doc[this.keyPath], doc)
+      map.set(doc[this.keyPath], doc)
       inserted.push(doc);
     };
 
@@ -197,7 +201,7 @@ export class Collection<T> {
 
     let doc = map.get(id);
     Object.assign(doc, update);
-    this.map.set(id, doc);
+    map.set(id, doc);
 
     if (!this._publishAfterStoreSync || !this._store) {
       this._dataSub.next(map);
@@ -220,7 +224,7 @@ export class Collection<T> {
       for (let doc of this.docs) {
         if (!filter(doc)) continue;
         Object.assign(doc, update);
-        this.map.set(doc[this.keyPath], doc);
+        map.set(doc[this.keyPath], doc);
         updated.push(doc);
       }
     } else {
@@ -228,9 +232,39 @@ export class Collection<T> {
         let doc = map.get(id);
         if (!doc) continue;
         Object.assign(doc, update);
-        this.map.set(doc[this.keyPath], doc);
+        map.set(doc[this.keyPath], doc);
         updated.push(doc);
       }
+    }
+
+    if (updated.length === 0) {
+      cb && cb([]);
+      return;
+    }
+
+    if (!this._publishAfterStoreSync || !this._store) {
+      this._dataSub.next(map);
+      (!this._store && cb) && cb(updated);
+    }
+
+    if (this._store) this._store.updateMany(updated, false).subscribe(() => {
+      if (this._publishAfterStoreSync) this._dataSub.next(map);
+      cb && cb(updated);
+    });
+  }
+
+  protected bulkUpdate(updates: Partial<T>[], cb?: (docs: T[]) => void): void {
+    let map = this.map;
+    let updated: T[] = [];
+
+    for (let update of updates) {
+      let id = update[this.keyPath];
+      if (!id) continue;
+      let doc = map.get(id);
+      if (!doc) continue;
+      Object.assign(doc, update);
+      map.set(id, doc);
+      updated.push(doc);
     }
 
     if (updated.length === 0) {
