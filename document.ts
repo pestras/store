@@ -59,8 +59,9 @@ export class Document<T = any> {
 
   protected update(data: Partial<T>, cb?: (data?: T) => void): Document<T> {
     if (!data) return this;
-    let curr = this._dataSub.getValue() || <T>{};
-    Object.assign(curr, data);
+    let curr = this._dataSub.getValue();
+    if (curr) Object.assign(curr, data);
+    else curr = <T>data;
     if (!this.publishAfterStoreSync || !this._store) {
       this._dataSub.next(curr);
       (!this._store && cb) && cb(curr);
@@ -108,8 +109,13 @@ export class Document<T = any> {
       else this._dataSub.next(data);
     }));
     if (mode === SYNC_MODE.MERGE_PULL) return this._store.get<T>(this.storeKey).pipe(map(data => {
-      if (typeof this.storeMap === "function") this._dataSub.next(Object.assign(this.get() || {}, this.storeMap(data || <any>{})));
-      else this._dataSub.next(Object.assign(this.get() || {}, data || <any>{}))
+      if (typeof this.storeMap === "function") {
+        let curr = this.get();
+        if (curr) Object.assign(curr, data);
+        else curr = <T>data;
+        this._dataSub.next(Object.assign(curr, this.storeMap(data)))
+      }
+      else this._dataSub.next(Object.assign(this.get() || {}, data))
     }));
     if (mode === SYNC_MODE.MERGE_PUSH) return this._store.get<T>(this.storeKey).pipe(switchMap(data => this._store.update(this.storeKey, Object.assign(this.get() || {}, data || <any>{}))));
     return this._store.update(this.storeKey, this.get());
