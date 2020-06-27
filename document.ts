@@ -33,7 +33,10 @@ export class Document<T = any> {
       this._store = store;
 
       this._store.ready$.pipe(switchMap(() => this._store.get<T>(this.storeKey)))
-        .subscribe(data => this._dataSub.next(data));
+        .subscribe(data => {
+          if (typeof this.storeMap === "function") this._dataSub.next(this.storeMap(data));
+          else this._dataSub.next(data)
+        });
     };
   }
 
@@ -51,6 +54,8 @@ export class Document<T = any> {
   }
 
   watch(keyPaths: string[] = []) { return this._dataSub.pipe(distinctUntilObjChanged(keyPaths)); }
+
+  protected storeMap?(doc: T): T;
 
   protected update(data: Partial<T>, cb?: (data?: T) => void): Document<T> {
     if (!data) return this;
@@ -90,7 +95,7 @@ export class Document<T = any> {
     }
     if (this._store) this._store.delete(this.storeKey).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(null);
-       cb && cb();
+      cb && cb();
     });
     return this;
   }
@@ -98,8 +103,14 @@ export class Document<T = any> {
   protected sync(mode = SYNC_MODE.PULL) {
     if (!this._store || !mode) return of(null);
 
-    if (mode === SYNC_MODE.PULL) return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(data)));
-    if (mode === SYNC_MODE.MERGE_PULL) return this._store.get<T>(this.storeKey).pipe(map(data => this._dataSub.next(Object.assign(this.get() || {}, data || <any>{}))));
+    if (mode === SYNC_MODE.PULL) return this._store.get<T>(this.storeKey).pipe(map(data => {
+      if (typeof this.storeMap === "function") this._dataSub.next(this.storeMap(data));
+      else this._dataSub.next(data);
+    }));
+    if (mode === SYNC_MODE.MERGE_PULL) return this._store.get<T>(this.storeKey).pipe(map(data => {
+      if (typeof this.storeMap === "function") this._dataSub.next(Object.assign(this.get() || {}, this.storeMap(data || <any>{})));
+      else this._dataSub.next(Object.assign(this.get() || {}, data || <any>{}))
+    }));
     if (mode === SYNC_MODE.MERGE_PUSH) return this._store.get<T>(this.storeKey).pipe(switchMap(data => this._store.update(this.storeKey, Object.assign(this.get() || {}, data || <any>{}))));
     return this._store.update(this.storeKey, this.get());
   }
@@ -108,7 +119,7 @@ export class Document<T = any> {
     if (this._store) return;
     if (!store) this._store = this._uStore || null;
     else this._store = store;
-    
+
     this._uStore = null;
     return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : of(null);
   }

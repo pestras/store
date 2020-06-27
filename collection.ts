@@ -15,7 +15,7 @@ export interface CollectionOptions<U = { [key: string]: any }> {
 export class ActiveDocumnet<T> extends Document<T> {
   constructor(observable$: Observable<Partial<T>>) {
     super();
-    
+
     observable$.subscribe(data => {
       if (data) this.update(data);
       else this.clear();
@@ -25,7 +25,7 @@ export class ActiveDocumnet<T> extends Document<T> {
   }
 }
 
-export class Collection<T> {
+export abstract class Collection<T> {
   private _idleSub = new BehaviorSubject<boolean>(false);
   private _dataSub = new BehaviorSubject<Map<IDBValidKey, T>>(null);
   private _activeSub = new BehaviorSubject<IDBValidKey>(null);
@@ -44,7 +44,10 @@ export class Collection<T> {
           tap(store => this._store = <ListStore<T>>store),
           switchMap(() => this._store.getAll())
         )
-        .subscribe(data => this._dataSub.next(this.docsToMap(data)));
+        .subscribe(data => {
+          if (typeof this.storeMap === "function") this._dataSub.next(this.docsToMap(data.map(doc => this.storeMap(doc))));
+          else this._dataSub.next(this.docsToMap(data));
+        });
     }
   }
 
@@ -129,7 +132,7 @@ export class Collection<T> {
   selectAll(keys: string[]): Observable<T[]> {
     return this.docs$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, keys));
   }
-  
+
   selectMany(id: IDBValidKey[], keys?: string[]): Observable<T[]>;
   selectMany(filter: (doc: T) => boolean, keys?: string[]): Observable<T[]>;
   selectMany(filter?: IDBValidKey[] | ((doc: T) => boolean), keys?: string[]) {
@@ -139,6 +142,8 @@ export class Collection<T> {
 
     return root$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, <string[]>keys));
   }
+
+  protected storeMap?(doc: T): T;
 
   protected setActive(id?: IDBValidKey): void {
     this._activeSub.next(id);
@@ -410,12 +415,19 @@ export class Collection<T> {
 
   protected sync(mode = SYNC_MODE.PULL) {
     if (!this._store || mode === SYNC_MODE.NONE) return of([]);
-    if (mode === SYNC_MODE.PULL) return this._store.getAll().pipe(map(data => this._dataSub.next(this.docsToMap(data))));
+    if (mode === SYNC_MODE.PULL) return this._store.getAll().pipe(map(data => {
+      if (typeof this.storeMap === "function") this._dataSub.next(this.docsToMap(data.map(doc => this.storeMap(doc))));
+      else this._dataSub.next(this.docsToMap(data));
+    }));
+
     if (mode === SYNC_MODE.MERGE_PULL) {
       return this._store.getAll().pipe(
         map(docs => {
           let map = this.map;
-          for (let doc of docs) map.set(doc[this.keyPath], doc);
+          for (let doc of docs) {
+            if (typeof this.storeMap === "function") map.set(doc[this.keyPath], this.storeMap(doc));
+            else map.set(doc[this.keyPath], doc);
+          }
           this._dataSub.next(map);
         })
       );
@@ -432,7 +444,7 @@ export class Collection<T> {
       this._ustore = null;
       return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : of([]);
     }
-    
+
     this._store = this._ustore = null;
     this.clear();
     this._db = db;
@@ -447,5 +459,3 @@ export class Collection<T> {
     return this;
   }
 }
-
-let col = new Collection('_id');
