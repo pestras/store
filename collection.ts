@@ -33,7 +33,7 @@ export abstract class Collection<T> {
   private _store: ListStore<T>;
 
   readonly idle$ = this._idleSub.asObservable();
-  readonly docs$ = this._dataSub.pipe(filterNil(), map(data => this.toArray(data)), gate(this.idle$));
+  readonly docs$ = this._dataSub.pipe(filterNil(), gate(this.idle$), map(data => this.toArray(data)));
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0));
   readonly active = new ActiveDocumnet<T>(combineLatest(this._activeSub, this._dataSub).pipe(switchMap(([id]) => this.select(id))));
 
@@ -114,7 +114,7 @@ export abstract class Collection<T> {
   select(filter: IDBValidKey | ((doc: T) => boolean), keys?: string[]) {
     let root$: Observable<T>;
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => { for (let doc of docs) if (filter(doc)) return doc }));
-    else root$ = this._dataSub.pipe(map(m => this.get(filter)));
+    else root$ = this.docs$.pipe(map(m => this.get(filter)));
 
     return root$.pipe(distinctUntilObjChanged(keys));
   }
@@ -124,7 +124,7 @@ export abstract class Collection<T> {
   has$(filter: IDBValidKey | ((doc: T) => boolean), keys?: string[]) {
     let root$: Observable<T>;
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => { for (let doc of docs) if (filter(doc)) return doc }));
-    else root$ = this._dataSub.pipe(map(m => this.get(filter)));
+    else root$ = this.docs$.pipe(map(m => this.get(filter)));
 
     return root$.pipe(distinctUntilObjChanged(keys), map(doc => doc !== undefined));
   }
@@ -138,7 +138,7 @@ export abstract class Collection<T> {
   selectMany(filter?: IDBValidKey[] | ((doc: T) => boolean), keys?: string[]) {
     let root$: Observable<T[]>;
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => docs.filter(doc => filter(doc))));
-    else root$ = this._dataSub.pipe(map(m => filter.map(id => this.get(id)).filter(doc => !!doc)));
+    else root$ = this.docs$.pipe(map(m => filter.map(id => this.get(id)).filter(doc => !!doc)));
 
     return root$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, <string[]>keys));
   }
