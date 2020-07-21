@@ -167,7 +167,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.update(doc[this.keyPath], doc).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(doc);
-    });
+    }, err => console.error(err));
   }
 
   protected insertMany(docs: T[], overwrite = false, cb?: (data: T[]) => void): void {
@@ -193,7 +193,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.updateMany(inserted).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(inserted)
-    });
+    }, err => console.error(err));
   }
 
   protected update(id: IDBValidKey, update: Partial<T>, cb?: (doc: T) => void): void {
@@ -216,7 +216,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.update(id, doc, false).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(doc)
-    });
+    }, err => console.error(err));
   }
 
   protected updateMany(ids: IDBValidKey[], update: Partial<T>, cb?: (updated: T[]) => void): void
@@ -255,7 +255,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.updateMany(updated, false).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(updated);
-    });
+    }, err => console.error(err));
   }
 
   protected bulkUpdate(updates: Partial<T>[], cb?: (docs: T[]) => void): void {
@@ -285,7 +285,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.updateMany(updated, false).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(updated);
-    });
+    }, err => console.error(err));
   }
 
   protected replaceOne(newDoc: T, upsert = false, cb?: (oldDoc: T, newDoc: T) => void): void {
@@ -307,7 +307,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.update(newDoc[this.keyPath], newDoc, true).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(oldDoc, newDoc);
-    });
+    }, err => console.error(err));
   }
 
   protected replaceMany(docs: T[], upsert = false, cb?: (docs: T[]) => void) {
@@ -330,7 +330,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.updateMany(docs, true).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(docs);
-    });
+    }, err => console.error(err));
   }
 
   protected replaceAll(docs: T[], cb?: (docs: T[]) => void): void {
@@ -344,7 +344,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.clear().pipe(switchMap(() => this._store.updateMany(docs, true))).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(docs);
-    });
+    }, err => console.error(err));
   }
 
   protected removeOne(id: IDBValidKey, cb?: (doc: T) => void): void {
@@ -364,7 +364,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.delete(id).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(doc);
-    });
+    }, err => console.error(err));
   }
 
   protected removeMany(ids: IDBValidKey[], cb?: (deleted: T[]) => void): void
@@ -396,7 +396,7 @@ export abstract class Collection<T> {
     if (this._store) this._store.deleteMany(removed.map(doc => doc[this.keyPath])).subscribe(() => {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
       cb && cb(removed);
-    });
+    }, err => console.error(err));
   }
 
   protected clear(cb?: () => void): void {
@@ -410,7 +410,7 @@ export abstract class Collection<T> {
       if (this._publishAfterStoreSync) this._dataSub.next(map);
 
       cb && cb();
-    });
+    }, err => console.error(err));
   }
 
   protected sync(mode = SYNC_MODE.PULL) {

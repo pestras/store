@@ -84,7 +84,7 @@ export class Document<T = any> {
     if (this._store) this._store.update(this.storeKey, data).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(data);
       cb && cb(data);
-    });
+    }, err => console.error(err));
     return this;
   }
 
@@ -97,7 +97,7 @@ export class Document<T = any> {
     if (this._store) this._store.delete(this.storeKey).subscribe(() => {
       this.publishAfterStoreSync && this._dataSub.next(null);
       cb && cb();
-    });
+    }, err => console.error(err));
     return this;
   }
 
