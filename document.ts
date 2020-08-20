@@ -57,48 +57,58 @@ export class Document<T = any> {
 
   protected storeMap?(doc: T): T;
 
-  protected update(data: Partial<T>, cb?: (data?: T) => void): Document<T> {
-    if (!data) return this;
-    let curr = this._dataSub.getValue();
-    if (curr) Object.assign(curr, data);
-    else curr = <T>data;
-    if (!this.publishAfterStoreSync || !this._store) {
-      this._dataSub.next(curr);
-      (!this._store && cb) && cb(curr);
-    }
-    if (this._store) this._store.update(this.storeKey, curr, true).subscribe(() => {
-      this.publishAfterStoreSync && this._dataSub.next(curr);
-      cb && cb(curr);
+  protected update(data: Partial<T>): Promise<T> {
+    return new Promise((res, rej) => {
+      if (!data) return res();
+      let curr = this._dataSub.getValue();
+
+      if (curr) Object.assign(curr, data);
+      else curr = <T>data;
+
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(curr);
+
+      if (this._store) {
+        this._store.update(this.storeKey, curr, true).subscribe(() => {
+          this.publishAfterStoreSync && this._dataSub.next(curr);
+          res(curr);
+        }, err => rej(err));
+
+      } else res(curr);
     });
-    return this;
   }
 
-  protected remove(keyPaths: string[], cb?: (data?: T) => void): Document<T> {
-    let data = this._dataSub.getValue();
-    if (!data) return this;
-    omit(data, keyPaths);
-    if (!this.publishAfterStoreSync || !this._store) {
-      this._dataSub.next(data);
-      (!this._store && cb) && cb(data);
-    }
-    if (this._store) this._store.update(this.storeKey, data).subscribe(() => {
-      this.publishAfterStoreSync && this._dataSub.next(data);
-      cb && cb(data);
-    }, err => console.error(err));
-    return this;
+  protected remove(keyPaths: string[]): Promise<T> {
+    return new Promise((res, rej) => {
+      let data = this._dataSub.getValue();
+      if (!data) return res();
+
+      omit(data, keyPaths);
+
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(data);
+
+      if (this._store) {
+        this._store.update(this.storeKey, data).subscribe(() => {
+          this.publishAfterStoreSync && this._dataSub.next(data);
+          res(data);
+        }, err => rej(err));
+
+      } else res(data);
+    });
   }
 
-  protected clear(cb?: () => void): Document<T> {
-    if (this._dataSub.getValue() === null) return this;
-    if (!this.publishAfterStoreSync || !this._store) {
-      this._dataSub.next(null);
-      (!this._store && cb) && cb();
-    }
-    if (this._store) this._store.delete(this.storeKey).subscribe(() => {
-      this.publishAfterStoreSync && this._dataSub.next(null);
-      cb && cb();
-    }, err => console.error(err));
-    return this;
+  protected clear(cb?: () => void): Promise<void> {
+    return new Promise((res, rej) => {
+      if (this._dataSub.getValue() === null) return res();
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(null);
+
+      if (this._store) {
+        this._store.delete(this.storeKey).subscribe(() => {
+          this.publishAfterStoreSync && this._dataSub.next(null);
+          res();
+        }, err => rej(err));
+        
+      } else res();
+    });
   }
 
   protected sync(mode = SYNC_MODE.PULL) {

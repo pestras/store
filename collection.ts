@@ -149,268 +149,274 @@ export abstract class Collection<T> {
     this._activeSub.next(id);
   }
 
-  protected insert(doc: T, overwrite = false, cb?: (doc: T) => void): void {
-    let map = this.map;
+  protected insert(doc: T, overwrite = false): Promise<T> {
+    return new Promise((res, rej) => {
+      let map = this.map;
 
-    if (map.has(doc[this.keyPath]) && !overwrite) {
-      cb && cb(null);
-      return;
-    }
+      if (map.has(doc[this.keyPath]) && !overwrite) return res(null);
 
-    map.set(doc[this.keyPath], doc);
+      map.set(doc[this.keyPath], doc);
 
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(doc);
-    }
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
-    if (this._store) this._store.update(doc[this.keyPath], doc).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(doc);
-    }, err => console.error(err));
+      if (this._store) {
+        this._store.update(doc[this.keyPath], doc).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(doc);
+        }, err => rej(err));
+
+      } else res(doc);
+    })
   }
 
-  protected insertMany(docs: T[], overwrite = false, cb?: (data: T[]) => void): void {
-    let map = this.map;
-    let inserted: T[] = [];
+  protected insertMany(docs: T[], overwrite = false): Promise<T[]> {
+    return new Promise((res, rej) => {
+      let map = this.map;
+      let inserted: T[] = [];
 
-    for (let doc of docs) {
-      if (map.has(doc[this.keyPath]) && !overwrite) continue;
-      map.set(doc[this.keyPath], doc)
-      inserted.push(doc);
-    };
+      for (let doc of docs) {
+        if (map.has(doc[this.keyPath]) && !overwrite) continue;
+        map.set(doc[this.keyPath], doc)
+        inserted.push(doc);
+      };
 
-    if (inserted.length === 0) {
-      (!this._store && cb) && cb([]);
-      return;
-    }
+      if (inserted.length === 0) return res([])
 
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      cb && cb(inserted)
-    }
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
-    if (this._store) this._store.updateMany(inserted).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(inserted)
-    }, err => console.error(err));
+      if (this._store) {
+        this._store.updateMany(inserted).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(inserted);
+        }, err => rej(err));
+
+      } else res(inserted);
+
+    })
   }
 
-  protected update(id: IDBValidKey, update: Partial<T>, cb?: (doc: T) => void): void {
-    let map = this.map;
+  protected update(id: IDBValidKey, update: Partial<T>): Promise<T> {
+    return new Promise((res, rej) => {
+      let map = this.map;
 
-    if (!map.has(id)) {
-      cb && cb(null);
-      return;
-    }
+      if (!map.has(id)) return res(null)
 
-    let doc = map.get(id);
-    Object.assign(doc, update);
-    map.set(id, doc);
-
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(doc)
-    }
-
-    if (this._store) this._store.update(id, doc, false).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(doc)
-    }, err => console.error(err));
-  }
-
-  protected updateMany(ids: IDBValidKey[], update: Partial<T>, cb?: (updated: T[]) => void): void
-  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>, cb?: (updated: T[]) => void): void
-  protected updateMany(filter: IDBValidKey[] | ((doc: T) => boolean), update: Partial<T>, cb?: (updated: T[]) => void): void {
-    let map = this.map;
-    let updated: T[] = [];
-
-    if (typeof filter === "function") {
-      for (let doc of this.docs) {
-        if (!filter(doc)) continue;
-        Object.assign(doc, update);
-        map.set(doc[this.keyPath], doc);
-        updated.push(doc);
-      }
-    } else {
-      for (let id of filter) {
-        let doc = map.get(id);
-        if (!doc) continue;
-        Object.assign(doc, update);
-        map.set(doc[this.keyPath], doc);
-        updated.push(doc);
-      }
-    }
-
-    if (updated.length === 0) {
-      cb && cb([]);
-      return;
-    }
-
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(updated);
-    }
-
-    if (this._store) this._store.updateMany(updated, false).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(updated);
-    }, err => console.error(err));
-  }
-
-  protected bulkUpdate(updates: Partial<T>[], cb?: (docs: T[]) => void): void {
-    let map = this.map;
-    let updated: T[] = [];
-
-    for (let update of updates) {
-      let id = update[this.keyPath];
-      if (!id) continue;
       let doc = map.get(id);
-      if (!doc) continue;
       Object.assign(doc, update);
       map.set(id, doc);
-      updated.push(doc);
-    }
 
-    if (updated.length === 0) {
-      cb && cb([]);
-      return;
-    }
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(updated);
-    }
+      if (this._store) {
+        this._store.update(id, doc, false).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(doc)
+        }, err => rej(err));
 
-    if (this._store) this._store.updateMany(updated, false).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(updated);
-    }, err => console.error(err));
+      } else res(doc);
+
+    })
   }
 
-  protected replaceOne(newDoc: T, upsert = false, cb?: (oldDoc: T, newDoc: T) => void): void {
-    let map = this.map;
+  protected updateMany(ids: IDBValidKey[], update: Partial<T>): Promise<T[]>
+  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>): Promise<T[]>
+  protected updateMany(filter: IDBValidKey[] | ((doc: T) => boolean), update: Partial<T>): Promise<T[]> {
+    return new Promise((res, rej) => {
+      let map = this.map;
+      let updated: T[] = [];
 
-    if (!map.has(newDoc[this.keyPath]) && !upsert) {
-      cb && cb(null, null);
-      return;
-    }
-
-    let oldDoc = map.get(newDoc[this.keyPath]) || null;
-    map.set(newDoc[this.keyPath], newDoc);
-
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(oldDoc, newDoc);
-    }
-
-    if (this._store) this._store.update(newDoc[this.keyPath], newDoc, true).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(oldDoc, newDoc);
-    }, err => console.error(err));
-  }
-
-  protected replaceMany(docs: T[], upsert = false, cb?: (docs: T[]) => void) {
-    let map = this.map;
-    let replaced: T[] = [];
-
-    for (let doc of docs) {
-      let oldDoc = map.get(doc[this.keyPath]);
-      if (oldDoc || (!oldDoc && upsert)) {
-        map.set(doc[this.keyPath], doc);
-        replaced.push(doc);
+      if (typeof filter === "function") {
+        for (let doc of this.docs) {
+          if (!filter(doc)) continue;
+          Object.assign(doc, update);
+          map.set(doc[this.keyPath], doc);
+          updated.push(doc);
+        }
+      } else {
+        for (let id of filter) {
+          let doc = map.get(id);
+          if (!doc) continue;
+          Object.assign(doc, update);
+          map.set(doc[this.keyPath], doc);
+          updated.push(doc);
+        }
       }
-    }
 
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(docs);
-    }
+      if (updated.length === 0) return res([]);
 
-    if (this._store) this._store.updateMany(docs, true).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(docs);
-    }, err => console.error(err));
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.updateMany(updated, false).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(updated);
+        }, err => rej(err));
+
+      } else res(updated);
+    })
   }
 
-  protected replaceAll(docs: T[], cb?: (docs: T[]) => void): void {
-    let map = this.docsToMap(docs);
+  protected bulkUpdate(updates: Partial<T>[]): Promise<T[]> {
+    return new Promise((res, rej) => {
+      let map = this.map;
+      let updated: T[] = [];
 
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(docs);
-    }
-
-    if (this._store) this._store.clear().pipe(switchMap(() => this._store.updateMany(docs, true))).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(docs);
-    }, err => console.error(err));
-  }
-
-  protected removeOne(id: IDBValidKey, cb?: (doc: T) => void): void {
-    let map = this.map;
-    let doc = map.get(id);
-
-    if (!doc) {
-      cb && cb(doc);
-      return;
-    }
-
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(doc);
-    }
-
-    if (this._store) this._store.delete(id).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(doc);
-    }, err => console.error(err));
-  }
-
-  protected removeMany(ids: IDBValidKey[], cb?: (deleted: T[]) => void): void
-  protected removeMany(filter: (doc: T) => boolean, cb?: (deleted: T[]) => void): void
-  protected removeMany(filter: IDBValidKey[] | ((doc: T) => boolean), cb?: (deleted: T[]) => void): void {
-    let map = this.map;
-    let removed: T[] = [];
-
-    if (typeof filter === "function") {
-      for (let doc of this.docs) {
-        if (!filter(doc)) continue;
-        this.map.delete(doc[this.keyPath]);
-        removed.push(doc);
-      }
-    } else {
-      for (let id of filter) {
+      for (let update of updates) {
+        let id = update[this.keyPath];
+        if (!id) continue;
         let doc = map.get(id);
         if (!doc) continue;
-        this.map.delete(id);
-        removed.push(doc);
+        Object.assign(doc, update);
+        map.set(id, doc);
+        updated.push(doc);
       }
-    }
 
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb(removed);
-    }
+      if (updated.length === 0) return res([])
 
-    if (this._store) this._store.deleteMany(removed.map(doc => doc[this.keyPath])).subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
-      cb && cb(removed);
-    }, err => console.error(err));
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.updateMany(updated, false).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(updated);
+        }, err => rej(err));
+
+      } else res(updated);
+    })
   }
 
-  protected clear(cb?: () => void): void {
-    let map = new Map<IDBValidKey, T>();
-    if (!this._publishAfterStoreSync || !this._store) {
-      this._dataSub.next(map);
-      (!this._store && cb) && cb();
-    }
+  protected replaceOne(newDoc: T, upsert = false): Promise<[T, T]> {
+    return new Promise((res, rej) => {
+      let map = this.map;
 
-    if (this._store) this._store.clear().subscribe(() => {
-      if (this._publishAfterStoreSync) this._dataSub.next(map);
+      if (!map.has(newDoc[this.keyPath]) && !upsert) return res(null);
 
-      cb && cb();
-    }, err => console.error(err));
+      let oldDoc = map.get(newDoc[this.keyPath]) || null;
+      map.set(newDoc[this.keyPath], newDoc);
+
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.update(newDoc[this.keyPath], newDoc, true).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res([oldDoc, newDoc]);
+        }, err => rej(err));
+
+      } else res([oldDoc, newDoc]);
+    });
+  }
+
+  protected replaceMany(docs: T[], upsert = false): Promise<T[]> {
+    return new Promise((res, rej) => {
+      let map = this.map;
+      let replaced: T[] = [];
+
+      for (let doc of docs) {
+        let oldDoc = map.get(doc[this.keyPath]);
+        if (oldDoc || (!oldDoc && upsert)) {
+          map.set(doc[this.keyPath], doc);
+          replaced.push(doc);
+        }
+      }
+
+      if (replaced.length === 0) return res([]);
+
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.updateMany(docs, true).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(replaced);
+        }, err => rej(err));
+
+      } res(replaced);
+    })
+  }
+
+  protected replaceAll(docs: T[]): Promise<T[]> {
+    return new Promise((res, rej) => {
+      let map = this.docsToMap(docs);
+
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.clear().pipe(switchMap(() => this._store.updateMany(docs, true))).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(docs);
+        }, err => rej(err));
+
+      } else res(docs);
+    })
+  }
+
+  protected removeOne(id: IDBValidKey): Promise<T> {
+    return new Promise((res, rej) => {
+      let map = this.map;
+      let doc = map.get(id);
+
+      if (!doc) return res(null);
+
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.delete(id).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(doc);
+        }, err => rej(err));
+
+      } else res(doc);
+    })
+  }
+
+  protected removeMany(ids: IDBValidKey[]): Promise<T[]>
+  protected removeMany(filter: (doc: T) => boolean): Promise<T[]>
+  protected removeMany(filter: IDBValidKey[] | ((doc: T) => boolean)): Promise<T[]> {
+    return new Promise((res, rej) => {
+      let map = this.map;
+      let removed: T[] = [];
+
+      if (typeof filter === "function") {
+        for (let doc of this.docs) {
+          if (!filter(doc)) continue;
+          this.map.delete(doc[this.keyPath]);
+          removed.push(doc);
+        }
+      } else {
+        for (let id of filter) {
+          let doc = map.get(id);
+          if (!doc) continue;
+          this.map.delete(id);
+          removed.push(doc);
+        }
+      }
+
+      if (removed.length === 0) return res([]);
+
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.deleteMany(removed.map(doc => doc[this.keyPath])).subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res(removed);
+        }, err => rej(err));
+
+      } else res(removed);
+    })
+  }
+
+  protected clear(): Promise<void> {
+    return new Promise((res, rej) => {
+      let map = new Map<IDBValidKey, T>();
+      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+
+      if (this._store) {
+        this._store.clear().subscribe(() => {
+          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          res();
+        }, err => rej(err));
+
+      } else res();
+    });
   }
 
   protected sync(mode = SYNC_MODE.PULL) {
