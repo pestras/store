@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, of, combineLatest } from "rxjs";
 import { filterNil } from "./operators/filterNil";
-import { map, filter, switchMap, tap } from "rxjs/operators";
+import { map, switchMap, tap, shareReplay } from "rxjs/operators";
 import { ListStore, XDB } from "./xdb";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { distinctUntilArrChanged } from "./operators/distinctUntilArrChanged";
@@ -32,9 +32,9 @@ export abstract class Collection<T> {
   private _ustore: ListStore<T>;
   private _store: ListStore<T>;
 
-  readonly idle$ = this._idleSub.asObservable();
-  readonly docs$ = this._dataSub.pipe(filterNil(), gate(this.idle$), map(data => this.toArray(data)));
-  readonly count$ = this._dataSub.pipe(map(data => data?.size || 0));
+  readonly idle$ = this._idleSub.pipe(shareReplay(1));
+  readonly docs$ = this._dataSub.pipe(filterNil(), gate(this.idle$), map(data => this.toArray(data)), shareReplay(1));
+  readonly count$ = this._dataSub.pipe(map(data => data?.size || 0), shareReplay(1));
   readonly active = new ActiveDocumnet<T>(combineLatest(this._activeSub, this._dataSub).pipe(switchMap(([id]) => this.select(id))));
 
   constructor(readonly keyPath: string, private _db: XDB = null, private _publishAfterStoreSync = true) {
