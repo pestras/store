@@ -132,7 +132,7 @@ export class Document<T = any> {
   }
 
   protected link(store?: Store, mode = SYNC_MODE.PULL) {
-    if (this._store) return;
+    if (this._store) return this.sync(mode);
     if (!store) this._store = this._uStore || null;
     else this._store = store;
 
