@@ -57,12 +57,12 @@ export class Document<T = any> {
 
   protected storeMap?(doc: T): T;
 
-  protected update(data: Partial<T>): Promise<T> {
+  protected update(data: Partial<T>, replace = false): Promise<T> {
     return new Promise((res, rej) => {
       if (!data) return res();
       let curr = this._dataSub.getValue();
 
-      if (curr) Object.assign(curr, data);
+      if (curr && !replace) Object.assign(curr, data);
       else curr = <T>data;
 
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(curr);
@@ -96,7 +96,7 @@ export class Document<T = any> {
     });
   }
 
-  protected clear(cb?: () => void): Promise<void> {
+  protected clear(): Promise<void> {
     return new Promise((res, rej) => {
       if (this._dataSub.getValue() === null) return res();
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(null);

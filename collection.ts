@@ -17,7 +17,7 @@ export class ActiveDocumnet<T> extends Document<T> {
     super();
 
     observable$.subscribe(data => {
-      if (data) this.update(data);
+      if (data) this.update(data, true);
       else this.clear();
     });
 
