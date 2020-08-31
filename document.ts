@@ -1,7 +1,7 @@
 import { BehaviorSubject, of } from "rxjs";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Store } from "./xdb";
-import { filter, switchMap, map, tap } from "rxjs/operators";
+import { filter, switchMap, map, tap, distinctUntilChanged } from "rxjs/operators";
 import { getValue } from '@pestras/toolbox/object/get-value';
 import { omit } from '@pestras/toolbox/object/omit';
 import { gate } from "./operators/gate";
@@ -26,7 +26,7 @@ export class Document<T = any> {
 
 
   readonly idle$ = this._idleSub.asObservable();
-  readonly data$ = this._dataSub.pipe(gate(this.idle$));
+  readonly data$ = this._dataSub.pipe(gate(this.idle$), distinctUntilObjChanged());
 
   constructor(store?: Store, readonly publishAfterStoreSync = false) {
     if (store) {
@@ -53,7 +53,7 @@ export class Document<T = any> {
     return keyPath ? getValue(data, keyPath) : data;
   }
 
-  watch(keyPaths: string[] = []) { return this._dataSub.pipe(distinctUntilObjChanged(keyPaths)); }
+  watch(keyPaths: string[]) { return this._dataSub.pipe( gate(this.idle$), distinctUntilObjChanged(keyPaths)); }
 
   protected storeMap?(doc: T): T;
 
