@@ -444,7 +444,7 @@ export abstract class Collection<T> {
   }
 
   protected link(db?: XDB, mode = SYNC_MODE.PULL) {
-    if (this._store) return;
+    if (this._store) return this.sync(mode);
     if (!db) {
       this._store = this._ustore || null;
       this._ustore = null;
