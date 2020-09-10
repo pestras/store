@@ -356,6 +356,8 @@ export abstract class Collection<T> {
 
       if (!doc) return res(null);
 
+      map.delete(id);
+
       if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
