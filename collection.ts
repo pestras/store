@@ -35,7 +35,7 @@ export abstract class Collection<T> {
   readonly idle$ = this._idleSub.pipe(shareReplay(1));
   readonly docs$ = this._dataSub.pipe(filterNil(), gate(this.idle$), map(data => this.toArray(data)), shareReplay(1));
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0), shareReplay(1));
-  readonly active = new ActiveDocumnet<T>(combineLatest(this._activeSub, this._dataSub).pipe(switchMap(([id]) => this.select(id))));
+  readonly active = new ActiveDocumnet<T>(combineLatest([this._activeSub, this._dataSub]).pipe(map(([id]) => this.get(id))));
 
   constructor(readonly keyPath: string, private _db: XDB = null, private _publishAfterStoreSync = true) {
     if (this._db) {
