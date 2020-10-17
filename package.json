@@ -12,9 +12,11 @@
   },
   "author": "pestras",
   "license": "ISC",
+  "peerDependencies": {
+  },
   "dependencies": {
     "@pestras/toolbox": "^1.1.7",
-    "rxjs": "^6.6.3"
+    "rxjs": "^6.5.4"
   },
   "devDependencies": {
     "typescript": "^3.9.7"
