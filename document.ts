@@ -1,6 +1,6 @@
 import { BehaviorSubject, of } from "rxjs";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
-import { Store } from "./xdb";
+import { Store, XDB } from "./xdb";
 import { switchMap, map, shareReplay } from "rxjs/operators";
 import { getValue } from '@pestras/toolbox/object/get-value';
 import { omit } from '@pestras/toolbox/object/omit';
@@ -21,25 +21,27 @@ export enum SYNC_MODE {
 export class Document<T = any> {
   private _idleSub = new BehaviorSubject<boolean>(false);
   private _dataSub = new BehaviorSubject<T>(null);
-  private _uStore: Store;
   private _store: Store;
-
 
   readonly idle$ = this._idleSub.pipe(shareReplay(1));
   readonly data$ = this._dataSub.pipe(gate(this.idle$), distinctUntilObjChanged(), shareReplay(1));
 
-  constructor(store?: Store, readonly publishAfterStoreSync = false) {
-    if (store) {
-      this._store = store;
+  constructor(xdb?: XDB, readonly publishAfterStoreSync = false) {
+    if (xdb) {
+      this._store = new Store(xdb, this.constructor.name);
 
       this._store.ready$.pipe(switchMap(() => this._store.get<T>(this.storeKey)))
         .subscribe(data => {
           if (typeof this.storeMap === "function") this._dataSub.next(this.storeMap(data));
-          else this._dataSub.next(data)
+          else this._dataSub.next(data);
+          this.onReady();
         });
-    };
+    } else this.onReady();
   }
 
+  onReady(): void { this.idle = true };
+
+  protected get store() { return this._store; }
   get isIdle() { return this._idleSub.getValue(); }
   get storeKey() { return this.constructor.name; }
   get linked() { return !!this._store; }
@@ -53,7 +55,7 @@ export class Document<T = any> {
     return keyPath ? getValue(data, keyPath) : data;
   }
 
-  watch(keyPaths: string[]) { return this._dataSub.pipe( gate(this.idle$), distinctUntilObjChanged(keyPaths)); }
+  watch(keyPaths: string[]) { return this._dataSub.pipe( gate(this.idle$), distinctUntilObjChanged(keyPaths), shareReplay(1)); }
 
   protected storeMap?(doc: T): T;
 
@@ -109,41 +111,5 @@ export class Document<T = any> {
         
       } else res();
     });
-  }
-
-  protected sync(mode = SYNC_MODE.PULL) {
-    if (!this._store || !mode) return of(null);
-
-    if (mode === SYNC_MODE.PULL) return this._store.get<T>(this.storeKey).pipe(map(data => {
-      if (typeof this.storeMap === "function") this._dataSub.next(this.storeMap(data));
-      else this._dataSub.next(data);
-    }));
-    if (mode === SYNC_MODE.MERGE_PULL) return this._store.get<T>(this.storeKey).pipe(map(data => {
-      if (typeof this.storeMap === "function") {
-        let curr = this.get();
-        if (curr) Object.assign(curr, data);
-        else curr = <T>data;
-        this._dataSub.next(Object.assign(curr, this.storeMap(data)))
-      }
-      else this._dataSub.next(Object.assign(this.get() || {}, data))
-    }));
-    if (mode === SYNC_MODE.MERGE_PUSH) return this._store.get<T>(this.storeKey).pipe(switchMap(data => this._store.update(this.storeKey, Object.assign(this.get() || {}, data || <any>{}))));
-    return this._store.update(this.storeKey, this.get());
-  }
-
-  protected link(store?: Store, mode = SYNC_MODE.PULL) {
-    if (this._store) return this.sync(mode);
-    if (!store) this._store = this._uStore || null;
-    else this._store = store;
-
-    this._uStore = null;
-    return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : of(null);
-  }
-
-  protected unlink(clearDoc = true) {
-    this._uStore = this._store;
-    this._store = null;
-    !!clearDoc && this.clear();
-    return this;
   }
 }

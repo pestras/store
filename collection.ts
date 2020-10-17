@@ -20,16 +20,17 @@ export class ActiveDocumnet<T> extends Document<T> {
       if (data) this.update(data, true);
       else this.clear();
     });
+  }
 
+  onReady() {
     this.idle = true;
   }
 }
 
-export abstract class Collection<T> {
+export class Collection<T> {
   private _idleSub = new BehaviorSubject<boolean>(false);
   private _dataSub = new BehaviorSubject<Map<IDBValidKey, T>>(null);
   private _activeSub = new BehaviorSubject<IDBValidKey>(null);
-  private _ustore: ListStore<T>;
   private _store: ListStore<T>;
 
   readonly idle$ = this._idleSub.pipe(shareReplay(1));
@@ -37,19 +38,20 @@ export abstract class Collection<T> {
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0), shareReplay(1));
   readonly active = new ActiveDocumnet<T>(combineLatest([this._activeSub, this._dataSub]).pipe(map(([id]) => this.get(id))));
 
-  constructor(readonly keyPath: string, private _db: XDB = null, private _publishAfterStoreSync = true) {
-    if (this._db) {
-      this._db.store(this.constructor.name, this.keyPath)
-        .pipe(
-          tap(store => this._store = <ListStore<T>>store),
-          switchMap(() => this._store.getAll())
-        )
+  constructor(readonly keyPath: string, xdb: XDB = null, readonly publishAfterStoreSync = true) {
+    if (xdb) {
+      this._store = new ListStore<T>(xdb, this.constructor.name, keyPath);
+      this._store.ready$
+        .pipe(switchMap(() => this._store.getAll()))
         .subscribe(data => {
           if (typeof this.storeMap === "function") this._dataSub.next(this.docsToMap(data.map(doc => this.storeMap(doc))));
           else this._dataSub.next(this.docsToMap(data));
+          this.onReady();
         });
-    }
+    } else this.onReady();
   }
+
+  onReady(): void { this.idle = true };
 
   protected get map() { return this._dataSub.getValue() || new Map<IDBValidKey, T>(); }
 
@@ -61,6 +63,7 @@ export abstract class Collection<T> {
     return map;
   }
 
+  protected get store() { return this._store; }
   get isIdle() { return this._idleSub.getValue(); }
   get docs() { return this.toArray(this.map); }
   get count() { return this.map.size; }
@@ -116,7 +119,7 @@ export abstract class Collection<T> {
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => { for (let doc of docs) if (filter(doc)) return doc }));
     else root$ = this.docs$.pipe(map(m => this.get(filter)));
 
-    return root$.pipe(distinctUntilObjChanged(keys));
+    return root$.pipe(distinctUntilObjChanged(keys), shareReplay(1));
   }
 
   has$(id: IDBValidKey, keys?: string[]): Observable<boolean>;
@@ -126,11 +129,11 @@ export abstract class Collection<T> {
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => { for (let doc of docs) if (filter(doc)) return doc }));
     else root$ = this.docs$.pipe(map(m => this.get(filter)));
 
-    return root$.pipe(distinctUntilObjChanged(keys), map(doc => doc !== undefined));
+    return root$.pipe(distinctUntilObjChanged(keys), map(doc => doc !== undefined), shareReplay(1));
   }
 
   selectAll(keys: string[]): Observable<T[]> {
-    return this.docs$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, keys));
+    return this.docs$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, keys), shareReplay(1));
   }
 
   selectMany(id: IDBValidKey[], keys?: string[]): Observable<T[]>;
@@ -140,7 +143,7 @@ export abstract class Collection<T> {
     if (typeof filter === "function") root$ = this.docs$.pipe(map(docs => docs.filter(doc => filter(doc))));
     else root$ = this.docs$.pipe(map(m => filter.map(id => this.get(id)).filter(doc => !!doc)));
 
-    return root$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, <string[]>keys));
+    return root$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, <string[]>keys), shareReplay(1));
   }
 
   protected storeMap?(doc: T): T;
@@ -157,11 +160,11 @@ export abstract class Collection<T> {
 
       map.set(doc[this.keyPath], doc);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.update(doc[this.keyPath], doc).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(doc);
         }, err => rej(err));
 
@@ -182,11 +185,11 @@ export abstract class Collection<T> {
 
       if (inserted.length === 0) return res([])
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.updateMany(inserted).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(inserted);
         }, err => rej(err));
 
@@ -205,11 +208,11 @@ export abstract class Collection<T> {
       Object.assign(doc, update);
       map.set(id, doc);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.update(id, doc, false).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(doc)
         }, err => rej(err));
 
@@ -244,11 +247,11 @@ export abstract class Collection<T> {
 
       if (updated.length === 0) return res([]);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.updateMany(updated, false).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(updated);
         }, err => rej(err));
 
@@ -273,11 +276,11 @@ export abstract class Collection<T> {
 
       if (updated.length === 0) return res([])
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.updateMany(updated, false).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(updated);
         }, err => rej(err));
 
@@ -294,11 +297,11 @@ export abstract class Collection<T> {
       let oldDoc = map.get(newDoc[this.keyPath]) || null;
       map.set(newDoc[this.keyPath], newDoc);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.update(newDoc[this.keyPath], newDoc, true).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res([oldDoc, newDoc]);
         }, err => rej(err));
 
@@ -321,11 +324,11 @@ export abstract class Collection<T> {
 
       if (replaced.length === 0) return res([]);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.updateMany(docs, true).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(replaced);
         }, err => rej(err));
 
@@ -337,11 +340,11 @@ export abstract class Collection<T> {
     return new Promise((res, rej) => {
       let map = this.docsToMap(docs);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.clear().pipe(switchMap(() => this._store.updateMany(docs, true))).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(docs);
         }, err => rej(err));
 
@@ -358,11 +361,11 @@ export abstract class Collection<T> {
 
       map.delete(id);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.delete(id).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(doc);
         }, err => rej(err));
 
@@ -394,11 +397,11 @@ export abstract class Collection<T> {
 
       if (removed.length === 0) return res([]);
 
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.deleteMany(removed.map(doc => doc[this.keyPath])).subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res(removed);
         }, err => rej(err));
 
@@ -409,61 +412,15 @@ export abstract class Collection<T> {
   protected clear(): Promise<void> {
     return new Promise((res, rej) => {
       let map = new Map<IDBValidKey, T>();
-      if (!this._publishAfterStoreSync || !this._store) this._dataSub.next(map);
+      if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
       if (this._store) {
         this._store.clear().subscribe(() => {
-          if (this._publishAfterStoreSync) this._dataSub.next(map);
+          if (this.publishAfterStoreSync) this._dataSub.next(map);
           res();
         }, err => rej(err));
 
       } else res();
     });
-  }
-
-  protected sync(mode = SYNC_MODE.PULL) {
-    if (!this._store || mode === SYNC_MODE.NONE) return of([]);
-    if (mode === SYNC_MODE.PULL) return this._store.getAll().pipe(map(data => {
-      if (typeof this.storeMap === "function") this._dataSub.next(this.docsToMap(data.map(doc => this.storeMap(doc))));
-      else this._dataSub.next(this.docsToMap(data));
-    }));
-
-    if (mode === SYNC_MODE.MERGE_PULL) {
-      return this._store.getAll().pipe(
-        map(docs => {
-          let map = this.map;
-          for (let doc of docs) {
-            if (typeof this.storeMap === "function") map.set(doc[this.keyPath], this.storeMap(doc));
-            else map.set(doc[this.keyPath], doc);
-          }
-          this._dataSub.next(map);
-        })
-      );
-    }
-
-    if (mode === SYNC_MODE.MERGE_PUSH) return this._store.updateMany(this.docs);
-    else return this._store.clear().pipe(switchMap(() => this._store.updateMany(this.docs)));
-  }
-
-  protected link(db?: XDB, mode = SYNC_MODE.PULL) {
-    if (this._store) return this.sync(mode);
-    if (!db) {
-      this._store = this._ustore || null;
-      this._ustore = null;
-      return mode !== SYNC_MODE.NONE && !!this._store ? this.sync(mode) : of([]);
-    }
-
-    this._store = this._ustore = null;
-    this.clear();
-    this._db = db;
-    return db.store(this.constructor.name, this.keyPath).pipe(tap(store => this._store = <ListStore<T>>store), switchMap(() => this.sync(mode)));
-  }
-
-  protected unlink(clearCol = true) {
-    this._ustore = this._store;
-    this._store = null;
-    this._db = null;
-    if (clearCol) this.clear();
-    return this;
   }
 }
