@@ -1,5 +1,5 @@
 import { Observable, BehaviorSubject } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
+import { filter, map, shareReplay } from 'rxjs/operators';
 import { distinctUntilArrChanged } from './operators/distinctUntilArrChanged';
 import { distinctUntilObjChanged } from './operators/distinctUntilObjChanged';
 
@@ -36,18 +36,20 @@ export class List<T> {
     return this._getMany(filter, this.docs);
   }
 
-  select(filter: (doc: T) => boolean, keys?: (keyof T)[]) {
+  select(filter: (doc: T) => boolean, keys?: string[]) {
     return this.docs$.pipe(
-      map(docs => docs.filter(doc => filter(doc)[0]),
-      distinctUntilObjChanged<T>(<string[]>keys)
-    ));
+      map(docs => docs.filter(doc => filter(doc))[0]),
+      distinctUntilObjChanged<T>(keys),
+      shareReplay(1)
+    );
   }
 
   selectMany(filter: (doc: T) => boolean): Observable<T[]> {
     return this.docs$.pipe(
-      map(docs => docs.filter(doc => filter(doc)),
-      distinctUntilArrChanged<T>()
-    ));
+      map(docs => docs.filter(doc => filter(doc))),
+      distinctUntilArrChanged<T>(),
+      shareReplay(1)
+    );
   }
 
   protected insert(docs: T[]) {

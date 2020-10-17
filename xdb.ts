@@ -9,9 +9,6 @@ export abstract class XDB {
   protected _stores = new Map<string, Store | ListStore<any>>();
   protected _openSub = new BehaviorSubject(false);
   protected _db: IDBDatabase;
-  protected upgradeListeners: ((v: number) => void)[] = [];
-  protected errorListeners: ((e: Error) => void)[] = [];
-  protected blockListeners: (() => void)[] = [];
 
   readonly open$ = this._openSub.pipe(distinctUntilChanged());
 
@@ -19,7 +16,7 @@ export abstract class XDB {
 
   constructor(readonly name: string, protected _v: number = 1) {
     if (!XDB.Supported) {
-      this.trigErrorStack(new Error('indexeddb not supported'));
+      this.onError(new Error('indexeddb not supported'));
       return null;
     }
 
@@ -49,32 +46,20 @@ export abstract class XDB {
 
   updateVersion(val: number) {
     if (this._v === val) return of(null);
-    this.close();
-    this._v = val;
-    return this.open();
+    if (this.isOpen) {
+      this.close();
+      this._v = val;
+      return this.open();
+    } else {
+      return of(null);
+    }
   }
 
-  protected trigUpgradeStack(oldVersion: number) {
-    for (let listener of this.upgradeListeners) listener(oldVersion);
-  }
-  protected trigErrorStack(err: Error) {
-    for (let listener of this.errorListeners) listener(err);
-  }
-  protected trigBlockStack() {
-    for (let listener of this.blockListeners) listener();
-  }
+  protected abstract onUpgrade(version: number): void;
 
-  onUpgrade(listener: (version: number) => void) {
-    if (this.upgradeListeners.indexOf(listener) === -1) this.upgradeListeners.push(listener);
-  };
+  protected abstract onError(err: Error): void;
 
-  onError(listener: (err: Error) => void) {
-    if (this.errorListeners.indexOf(listener) === -1) this.errorListeners.push(listener);
-  };
-
-  onBlock(listener: () => void) {
-    if (this.blockListeners.indexOf(listener) === -1) this.blockListeners.push(listener);
-  };
+  protected abstract onBlock(): void;
 
   open() {
     return new Observable<void>(subscriber => {
@@ -95,21 +80,21 @@ export abstract class XDB {
 
       req.addEventListener('error', () => {
         this._openSub.next(false);
-        this.trigErrorStack(req.error);
+        this.onError(req.error);
         subscriber.error(req.error);
         subscriber.complete();
       });
 
       req.addEventListener('blocked', () => {
         this._openSub.next(false);
-        this.trigBlockStack();
+        this.onBlock();
         subscriber.error(new Error(`db ${self.name} is blocked`));
         subscriber.complete();
       });
 
       req.addEventListener('upgradeneeded', (e: IDBVersionChangeEvent) => {
         this._db = req.result;
-        this.trigUpgradeStack(e.oldVersion);
+        this.onUpgrade(e.oldVersion);
       });
     });
   }
@@ -138,19 +123,15 @@ export abstract class XDB {
     });
   }
 
-  registerStore(store: Store | ListStore<any>) {
-    if (this._db.objectStoreNames.contains(store.name)) return;
-    if (store instanceof Store) this._db.createObjectStore(name);
-    else this._db.createObjectStore(name, { keyPath: <string>(<ListStore<any>>store).keyPath });
-
-    this._stores.set(name, store);
+  createStore(name: string, keyPath?: string) {
+    if (this._db.objectStoreNames.contains(name)) return;
+    if (!keyPath) this._db.createObjectStore(name);
+    else this._db.createObjectStore(name, { keyPath: keyPath });
   }
 
   dropStore(name: string) {
     if (this.isOpen) this._db.deleteObjectStore(name);
   }
-
-  getStore(name: string) { return this._stores.get(name); }
 
   transaction(storeNames: string | string[], mode?: IDBTransactionMode) {
     return this.isOpen ? of(this._db.transaction(storeNames, mode)) : throwError(new Error(`${this.name} db is closed`));
@@ -208,11 +189,13 @@ export class Store {
           throw req.error;
         });
       });
-
-    this._db.onUpgrade(() => { this._db.registerStore(this); });
   }
 
   get ready() { return this._readySub.getValue(); }
+
+  drop() {
+    if (this._db.isOpen) this._db.dropStore(this.name);
+  }
 
   hasKey(key: IDBValidKey) { return this._keys.has(key); }
 
