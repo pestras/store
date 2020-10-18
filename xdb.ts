@@ -130,7 +130,8 @@ export abstract class XDB {
   }
 
   dropStore(name: string) {
-    if (this.isOpen) this._db.deleteObjectStore(name);
+    if (!this._db.objectStoreNames.contains(name)) return;
+    this._db.deleteObjectStore(name);
   }
 
   transaction(storeNames: string[], mode?: IDBTransactionMode) {
