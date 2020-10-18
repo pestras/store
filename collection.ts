@@ -51,7 +51,7 @@ export class Collection<T> {
     } else this.onReady();
   }
 
-  onReady(): void { this.idle = true };
+  protected onReady(): void { this.idle = true };
 
   protected get map() { return this._dataSub.getValue() || new Map<IDBValidKey, T>(); }
 

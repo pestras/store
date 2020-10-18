@@ -333,7 +333,7 @@ export class ListStore<T> extends Store {
         let req = trans.objectStore(this.name).getAll();
 
         req.addEventListener('success', () => {
-          subscriber.next();
+          subscriber.next(req.result);
           subscriber.complete();
         });
 

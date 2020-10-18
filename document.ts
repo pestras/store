@@ -1,7 +1,7 @@
 import { BehaviorSubject, of } from "rxjs";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Store, XDB } from "./xdb";
-import { switchMap, map, shareReplay } from "rxjs/operators";
+import { switchMap, map, shareReplay, filter, distinctUntilChanged } from "rxjs/operators";
 import { getValue } from '@pestras/toolbox/object/get-value';
 import { omit } from '@pestras/toolbox/object/omit';
 import { gate } from "./operators/gate";
@@ -36,10 +36,12 @@ export class Document<T = any> {
           else this._dataSub.next(data);
           this.onReady();
         });
-    } else this.onReady();
+    } else {
+      this.onReady();
+    }
   }
 
-  onReady(): void { this.idle = true };
+  protected onReady(): void { this.idle = true };
 
   protected get store() { return this._store; }
   get isIdle() { return this._idleSub.getValue(); }
@@ -55,7 +57,7 @@ export class Document<T = any> {
     return keyPath ? getValue(data, keyPath) : data;
   }
 
-  watch(keyPaths: string[]) { return this._dataSub.pipe( gate(this.idle$), distinctUntilObjChanged(keyPaths), shareReplay(1)); }
+  watch(keyPaths: string[]) { return this._dataSub.pipe(gate(this.idle$), distinctUntilObjChanged(keyPaths), shareReplay(1)); }
 
   protected storeMap?(doc: T): T;
 
@@ -108,7 +110,7 @@ export class Document<T = any> {
           this.publishAfterStoreSync && this._dataSub.next(null);
           res();
         }, err => rej(err));
-        
+
       } else res();
     });
   }
