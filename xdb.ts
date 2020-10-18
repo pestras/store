@@ -133,7 +133,7 @@ export abstract class XDB {
     if (this.isOpen) this._db.deleteObjectStore(name);
   }
 
-  transaction(storeNames: string | string[], mode?: IDBTransactionMode) {
+  transaction(storeNames: string[], mode?: IDBTransactionMode) {
     return this.isOpen ? of(this._db.transaction(storeNames, mode)) : throwError(new Error(`${this.name} db is closed`));
   }
 
@@ -176,7 +176,7 @@ export class Store {
 
   constructor(protected _db: XDB, readonly name: string) {
     this._db.open$
-      .pipe(filter(open => open), switchMap(() => this._db.transaction(this.name, 'readonly')))
+      .pipe(filter(open => open), switchMap(() => this._db.transaction([this.name], 'readonly')))
       .subscribe(trans => {
         let req = trans.objectStore(this.name).getAllKeys();
 
@@ -200,7 +200,7 @@ export class Store {
   hasKey(key: IDBValidKey) { return this._keys.has(key); }
 
   get<T = any>(id: IDBValidKey) {
-    return this._db.transaction(this.name, 'readonly')
+    return this._db.transaction([this.name], 'readonly')
       .pipe(switchMap(trans => {
         return new Observable<T>(subscriber => {
           let req = trans.objectStore(this.name).get(id);
@@ -221,7 +221,7 @@ export class Store {
   update<T = any>(key: IDBValidKey, doc: Partial<T>, upsert?: boolean): Observable<void>;
   update<T = any>(key: IDBValidKey, doc: Partial<T>, upsert?: boolean, trans?: IDBTransaction): Observable<IDBTransaction>;
   update<T = any>(key: IDBValidKey, doc: Partial<T>, upsert = true, trans?: IDBTransaction): Observable<any> {
-    let trans$ = trans ? of(trans) : this._db.transaction(this.name, 'readwrite');
+    let trans$ = trans ? of(trans) : this._db.transaction([this.name], 'readwrite');
     return trans$.pipe(switchMap(trans => {
       return new Observable<any>(subscriber => {
         let os = trans.objectStore(this.name);
@@ -257,7 +257,7 @@ export class Store {
   delete(key: IDBValidKey): Observable<void>;
   delete(key: IDBValidKey, trans?: IDBTransaction): Observable<IDBTransaction>;
   delete(key: IDBValidKey, trans?: IDBTransaction): Observable<any> {
-    let trans$ = trans ? of(trans) : this._db.transaction(this.name, 'readwrite');
+    let trans$ = trans ? of(trans) : this._db.transaction([this.name], 'readwrite');
     return trans$.pipe(switchMap(trans => {
       if (!this.hasKey(key)) return of(trans);
       return new Observable<any>(subscriber => {
@@ -286,7 +286,7 @@ export class Store {
   clear(): Observable<void>;
   clear(trans: IDBTransaction): Observable<IDBTransaction>;
   clear(trans?: IDBTransaction): Observable<any> {
-    let trans$ = trans ? of(trans) : this._db.transaction(this.name, 'readwrite');
+    let trans$ = trans ? of(trans) : this._db.transaction([this.name], 'readwrite');
     return trans$.pipe(switchMap(trans => {
       return new Observable<any>(subscriber => {
         let self = this;
@@ -328,7 +328,7 @@ export class ListStore<T> extends Store {
   get<U = T>(id: IDBValidKey) { return super.get<U>(id); }
 
   getAll() {
-    return this._db.transaction(this.name, 'readonly').pipe(switchMap(trans => {
+    return this._db.transaction([this.name], 'readonly').pipe(switchMap(trans => {
       return new Observable<T[]>(subscriber => {
         let req = trans.objectStore(this.name).getAll();
 
@@ -348,7 +348,7 @@ export class ListStore<T> extends Store {
   update<U = T>(key: IDBValidKey, doc: U, upsert?: boolean): Observable<void>
   update<U = T>(key: IDBValidKey, doc: U, upsert?: boolean, trans?: IDBTransaction): Observable<IDBTransaction>
   update<U = T>(key: IDBValidKey, doc: U, upsert = true, trans?: IDBTransaction): Observable<any> {
-    let trans$ = trans ? of(trans) : this._db.transaction(this.name, 'readwrite');
+    let trans$ = trans ? of(trans) : this._db.transaction([this.name], 'readwrite');
     return trans$.pipe(switchMap(trans => {
       return new Observable<any>(subscriber => {
         let os = trans.objectStore(this.name);
@@ -385,7 +385,7 @@ export class ListStore<T> extends Store {
   updateMany(docs: T[], upsert?: boolean): Observable<void>;
   updateMany(docs: T[], upsert?: boolean, trans?: IDBTransaction): Observable<IDBTransaction>;
   updateMany(docs: T[], upsert = true, trans?: IDBTransaction): Observable<any> {
-    let trans$ = trans ? of(trans) : this._db.transaction(this.name, 'readwrite');
+    let trans$ = trans ? of(trans) : this._db.transaction([this.name], 'readwrite');
     return trans$.pipe(switchMap(trans => {
       return new Observable<any>(subscriber => {
         for (let doc of docs)
@@ -415,7 +415,7 @@ export class ListStore<T> extends Store {
   deleteMany(keys: IDBValidKey[]): Observable<void>;
   deleteMany(keys: IDBValidKey[], trans?: IDBTransaction): Observable<IDBTransaction>;
   deleteMany(keys: IDBValidKey[], trans?: IDBTransaction): Observable<any> {
-    let trans$ = trans ? of(trans) : this._db.transaction(this.name, 'readwrite');
+    let trans$ = trans ? of(trans) : this._db.transaction([this.name], 'readwrite');
     return trans$.pipe(switchMap(trans => {
       return new Observable<any>(subscriber => {
         keys = keys.filter(key => !this.hasKey(key));
