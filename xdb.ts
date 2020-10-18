@@ -72,8 +72,8 @@ export abstract class XDB {
       let req = indexedDB.open(this.name, this.version);
 
       req.addEventListener('success', () => {
-        this._openSub.next(true);
         this._db = req.result;
+        this._openSub.next(true);
         subscriber.next();
         subscriber.complete();
       });
