@@ -26,11 +26,11 @@ export class Document<T = any> {
   readonly idle$ = this._idleSub.pipe(shareReplay(1));
   readonly data$ = this._dataSub.pipe(gate(this.idle$), distinctUntilObjChanged(), shareReplay(1));
 
-  constructor(xdb?: XDB, readonly publishAfterStoreSync = false) {
-    if (xdb) {
-      this._store = new Store(xdb, this.constructor.name);
+  constructor(readonly name?: string, xdb?: XDB, readonly publishAfterStoreSync = false) {
+    if (this.name && xdb) {
+      this._store = new Store(xdb, this.name);
 
-      this._store.ready$.pipe(switchMap(() => this._store.get<T>(this.storeKey)))
+      this._store.ready$.pipe(switchMap(() => this._store.get<T>(this.name)))
         .subscribe(data => {
           if (typeof this.storeMap === "function") this._dataSub.next(this.storeMap(data));
           else this._dataSub.next(data);
@@ -45,7 +45,6 @@ export class Document<T = any> {
 
   protected get store() { return this._store; }
   get isIdle() { return this._idleSub.getValue(); }
-  get storeKey() { return this.constructor.name; }
   get linked() { return !!this._store; }
 
   protected set idle(val: boolean) { this._idleSub.next(val); }
@@ -72,7 +71,7 @@ export class Document<T = any> {
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(curr);
 
       if (this._store) {
-        this._store.update(this.storeKey, curr, true).subscribe(() => {
+        this._store.update(this.name, curr, true).subscribe(() => {
           this.publishAfterStoreSync && this._dataSub.next(curr);
           res(curr);
         }, err => rej(err));
@@ -91,7 +90,7 @@ export class Document<T = any> {
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(data);
 
       if (this._store) {
-        this._store.update(this.storeKey, data).subscribe(() => {
+        this._store.update(this.name, data).subscribe(() => {
           this.publishAfterStoreSync && this._dataSub.next(data);
           res(data);
         }, err => rej(err));
@@ -106,7 +105,7 @@ export class Document<T = any> {
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(null);
 
       if (this._store) {
-        this._store.delete(this.storeKey).subscribe(() => {
+        this._store.delete(this.name).subscribe(() => {
           this.publishAfterStoreSync && this._dataSub.next(null);
           res();
         }, err => rej(err));

@@ -38,9 +38,9 @@ export class Collection<T> {
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0), distinctUntilChanged(), shareReplay(1));
   readonly active = new ActiveDocumnet<T>(combineLatest([this._activeSub, this._dataSub]).pipe(map(([id]) => this.get(id))));
 
-  constructor(readonly keyPath: string, xdb: XDB = null, readonly publishAfterStoreSync = true) {
-    if (xdb) {
-      this._store = new ListStore<T>(xdb, this.constructor.name, keyPath);
+  constructor(readonly keyPath: string, readonly name?: string, xdb: XDB = null, readonly publishAfterStoreSync = true) {
+    if (this.name && xdb) {
+      this._store = new ListStore<T>(xdb, this.name, keyPath);
       this._store.ready$
         .pipe(switchMap(() => this._store.getAll()))
         .subscribe(data => {
