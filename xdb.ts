@@ -109,7 +109,7 @@ export abstract class XDB {
     this.close();
     XDB.Connections.delete(this.name);
     return new Observable<void>(subscriber => {
-      let req = indexedDB.deleteDatabase(name);
+      let req = indexedDB.deleteDatabase(this.name);
 
       req.addEventListener('success', () => {
         subscriber.next();
