@@ -18,13 +18,14 @@ export enum SYNC_MODE {
   PUSH
 }
 
-export class Document<T = any> {
+export abstract class Document<T = any> {
   private _idleSub = new BehaviorSubject<boolean>(false);
   private _dataSub = new BehaviorSubject<T>(null);
   private _store: Store;
-
-  readonly idle$ = this._idleSub.pipe(shareReplay(1));
-  readonly data$ = this._dataSub.pipe(gate(this.idle$), distinctUntilObjChanged(), shareReplay(1));
+  
+  readonly idle$ = this._idleSub.pipe(distinctUntilChanged(), shareReplay(1));
+  private _data$ = this._dataSub.pipe(gate(this.idle$), map(doc => this.map(doc)));
+  readonly data$ = this._data$.pipe(distinctUntilObjChanged(), shareReplay(1));
 
   constructor(readonly name?: string, xdb?: XDB, readonly publishAfterStoreSync = false) {
     if (this.name && xdb) {
@@ -32,8 +33,7 @@ export class Document<T = any> {
 
       this._store.ready$.pipe(switchMap(() => this._store.get<T>(this.name)))
         .subscribe(data => {
-          if (typeof this.storeMap === "function") this._dataSub.next(this.storeMap(data));
-          else this._dataSub.next(data);
+          this._dataSub.next(this.map(data));
           this.onReady();
         });
     } else {
@@ -48,25 +48,28 @@ export class Document<T = any> {
   get linked() { return !!this._store; }
 
   protected set idle(val: boolean) { this._idleSub.next(val); }
-
+  
+  protected map(doc: T): T { return !!doc ? Object.assign({}, doc) : null };
+  
   get(): T;
   get(keyPath: string): any;
   get(keyPath?: string) {
     let data = this._dataSub.getValue();
-    return keyPath ? getValue(data, keyPath) : data;
+    return keyPath
+      ? getValue(data, keyPath)
+      : this.map(data);
   }
 
-  watch(keyPaths: string[]) { return this._dataSub.pipe(gate(this.idle$), distinctUntilObjChanged(keyPaths), shareReplay(1)); }
+  watch(keyPaths: string[]) { return this._data$.pipe(distinctUntilObjChanged(keyPaths), shareReplay(1)); }
 
-  protected storeMap?(doc: T): T;
 
   protected update(data: Partial<T>, replace = false): Promise<T> {
     return new Promise((res, rej) => {
-      if (!data) return res();
-      let curr = this._dataSub.getValue();
+      if (!data) return res(null);
+      let curr = this.get();
 
       if (curr && !replace) Object.assign(curr, data);
-      else curr = <T>data;
+      else curr = this.map(<T>data);
 
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(curr);
 
@@ -82,8 +85,8 @@ export class Document<T = any> {
 
   protected remove(keyPaths: string[]): Promise<T> {
     return new Promise((res, rej) => {
-      let data = this._dataSub.getValue();
-      if (!data) return res();
+      let data = this.get();
+      if (!data) return res(null);
 
       omit(data, keyPaths);
 
