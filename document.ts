@@ -1,7 +1,7 @@
 import { BehaviorSubject, of } from "rxjs";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Store, XDB } from "./xdb";
-import { switchMap, map, shareReplay, filter, distinctUntilChanged } from "rxjs/operators";
+import { switchMap, map, shareReplay, distinctUntilChanged } from "rxjs/operators";
 import { getValue } from '@pestras/toolbox/object/get-value';
 import { omit } from '@pestras/toolbox/object/omit';
 import { gate } from "./operators/gate";

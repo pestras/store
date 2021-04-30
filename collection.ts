@@ -1,10 +1,9 @@
-import { BehaviorSubject, Observable, of, combineLatest } from "rxjs";
+import { BehaviorSubject, Observable, combineLatest } from "rxjs";
 import { filterNil } from "./operators/filterNil";
-import { map, switchMap, tap, shareReplay, distinctUntilChanged, mapTo } from "rxjs/operators";
+import { map, switchMap, shareReplay, distinctUntilChanged, mapTo } from "rxjs/operators";
 import { ListStore, XDB } from "./xdb";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
-import { distinctUntilArrChanged } from "./operators/distinctUntilArrChanged";
-import { SYNC_MODE, Document } from "./document";
+import { Document } from "./document";
 import { gate } from "./operators/gate";
 
 export interface CollectionOptions<U = { [key: string]: any }> {
@@ -39,7 +38,7 @@ export class Collection<T> {
 
   readonly idle$ = this._idleSub.pipe(distinctUntilChanged(), shareReplay(1));
   private _docs$ = this._dataSub.pipe(gate(this.idle$), filterNil(), map(data => this.toArray(data)));
-  readonly docs$ = this._docs$.pipe(distinctUntilArrChanged(), shareReplay(1));
+  readonly docs$ = this._docs$.pipe(shareReplay(1));
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0), distinctUntilChanged(), shareReplay(1));
   readonly active = new ActiveDocumnet<T>(this, combineLatest([this._activeSub, this._dataSub]).pipe(map(([id]) => this.get(id))));
 
@@ -66,14 +65,14 @@ export class Collection<T> {
   protected toArray(data: Map<IDBValidKey, T>) { return Array.from(data.values()); }
 
   protected docsToMap(docs: T[]) {
-    let map = new Map<IDBValidKey, T>();
-    for (let doc of docs) map.set(doc[this.keyPath], this.map(doc));
-    return map;
+    let container = new Map<IDBValidKey, T>();
+    for (let doc of docs) container.set(doc[this.keyPath], doc);
+    return container;
   }
 
   protected get store() { return this._store; }
   get isIdle() { return this._idleSub.getValue(); }
-  get docs() { return this.toArray(this.container).map(doc => this.map(doc)); }
+  get docs() { return this.toArray(this.container); }
   get count() { return this.container.size; }
   get linked() { return !!this._store; }
 
@@ -84,8 +83,8 @@ export class Collection<T> {
   private _get(container: Map<IDBValidKey, T>, filter: IDBValidKey | ((doc: T) => boolean)) {
     if (typeof filter === 'function') {
       for (let doc of this.toArray(container))
-        if (filter(doc)) return this.map(doc);
-    } else return this.map(container.get(filter));
+        if (filter(doc)) return doc;
+    } else return container.get(filter);
   }
 
   get(id: IDBValidKey): T;
@@ -106,10 +105,10 @@ export class Collection<T> {
     let result: T[] = [];
     if (typeof filter === 'function') {
       for (let doc of this.toArray(container))
-        if (filter(doc)) result.push(this.map(doc));
+        if (filter(doc)) result.push(doc);
     } else for (let id of filter) {
       let doc = container.get(id);
-      !!doc && result.push(this.map(doc));
+      !!doc && result.push(doc);
     }
     return result;
   }
@@ -132,14 +131,10 @@ export class Collection<T> {
     return this._docs$.pipe(mapTo(this._get(this.container, <any>filter)), distinctUntilObjChanged(keys), map(doc => doc !== undefined), shareReplay(1));
   }
 
-  selectAll(keys: string[]): Observable<T[]> {
-    return this._docs$.pipe(distinctUntilArrChanged(<keyof T>this.keyPath, keys), shareReplay(1));
-  }
-
-  selectMany(id: IDBValidKey[], keys?: string[]): Observable<T[]>;
-  selectMany(filter: (doc: T) => boolean, keys?: string[]): Observable<T[]>;
-  selectMany(filter?: IDBValidKey[] | ((doc: T) => boolean), keys?: string[]) {
-    return this._docs$.pipe(mapTo(this._getMany(this.container, <any>filter)), distinctUntilArrChanged(<keyof T>this.keyPath, <string[]>keys), shareReplay(1));
+  selectMany(id: IDBValidKey[]): Observable<T[]>;
+  selectMany(filter: (doc: T) => boolean): Observable<T[]>;
+  selectMany(filter?: IDBValidKey[] | ((doc: T) => boolean)) {
+    return this._docs$.pipe(mapTo(this._getMany(this.container, <any>filter)), shareReplay(1));
   }
 
   protected setActive(id?: IDBValidKey): void {
@@ -152,7 +147,7 @@ export class Collection<T> {
 
       if (container.has(doc[this.keyPath]) && !overwrite) return res(null);
 
-      container.set(doc[this.keyPath], this.map(doc));
+      container.set(doc[this.keyPath], doc);
 
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(container);
 
@@ -173,7 +168,7 @@ export class Collection<T> {
 
       for (let doc of docs) {
         if (map.has(doc[this.keyPath]) && !overwrite) continue;
-        map.set(doc[this.keyPath], this.map(doc))
+        map.set(doc[this.keyPath], doc);
         inserted.push(doc);
       };
 
@@ -288,7 +283,7 @@ export class Collection<T> {
       if (!map.has(newDoc[this.keyPath]) && !upsert) return res(null);
 
       let oldDoc = map.get(newDoc[this.keyPath]) || null;
-      map.set(newDoc[this.keyPath], this.map(newDoc));
+      map.set(newDoc[this.keyPath], newDoc);
 
       if (!this.publishAfterStoreSync || !this._store) this._dataSub.next(map);
 
@@ -310,7 +305,7 @@ export class Collection<T> {
       for (let doc of docs) {
         let oldDoc = map.get(doc[this.keyPath]);
         if (!!oldDoc || (!oldDoc && upsert)) {
-          map.set(doc[this.keyPath], this.map(doc));
+          map.set(doc[this.keyPath], doc);
           replaced.push(doc);
         }
       }
