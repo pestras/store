@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, combineLatest } from "rxjs";
 import { filterNil } from "./operators/filterNil";
-import { map, switchMap, shareReplay, distinctUntilChanged, mapTo } from "rxjs/operators";
+import { map, switchMap, shareReplay, distinctUntilChanged } from "rxjs/operators";
 import { ListStore, XDB } from "./xdb";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { Document } from "./document";
@@ -37,7 +37,7 @@ export class Collection<T> {
   private _store: ListStore<T>;
 
   readonly idle$ = this._idleSub.pipe(distinctUntilChanged(), shareReplay(1));
-  private _docs$ = this._dataSub.pipe(gate(this.idle$), filterNil(), map(data => this.toArray(data)));
+  private _docs$ = this._dataSub.pipe(filterNil(), gate(this.idle$), map(data => this.toArray(data)));
   readonly docs$ = this._docs$.pipe(shareReplay(1));
   readonly count$ = this._dataSub.pipe(map(data => data?.size || 0), distinctUntilChanged(), shareReplay(1));
   readonly active = new ActiveDocumnet<T>(this, combineLatest([this._activeSub, this._dataSub]).pipe(map(([id]) => this.get(id))));
@@ -122,19 +122,19 @@ export class Collection<T> {
   select(id: IDBValidKey, keys?: string[]): Observable<T>;
   select(filter: (doc: T) => boolean, keys?: string[]): Observable<T>;
   select(filter: IDBValidKey | ((doc: T) => boolean), keys?: string[]) {
-    return this._docs$.pipe(mapTo(this._get(this.container, <any>filter)), distinctUntilObjChanged(keys), shareReplay(1));
+    return this._docs$.pipe(map(() => this._get(this.container, <any>filter)), distinctUntilObjChanged(keys), shareReplay(1));
   }
 
   has$(id: IDBValidKey, keys?: string[]): Observable<boolean>;
   has$(filter: (doc: T) => boolean, keys?: string[]): Observable<boolean>;
   has$(filter: IDBValidKey | ((doc: T) => boolean), keys?: string[]) {
-    return this._docs$.pipe(mapTo(this._get(this.container, <any>filter)), distinctUntilObjChanged(keys), map(doc => doc !== undefined), shareReplay(1));
+    return this._docs$.pipe(map(() => this._get(this.container, <any>filter)), distinctUntilObjChanged(keys), map(doc => doc !== undefined), shareReplay(1));
   }
 
   selectMany(id: IDBValidKey[]): Observable<T[]>;
   selectMany(filter: (doc: T) => boolean): Observable<T[]>;
   selectMany(filter?: IDBValidKey[] | ((doc: T) => boolean)) {
-    return this._docs$.pipe(mapTo(this._getMany(this.container, <any>filter)), shareReplay(1));
+    return this._docs$.pipe(map(() => this._getMany(this.container, <any>filter)), shareReplay(1));
   }
 
   protected setActive(id?: IDBValidKey): void {
