@@ -6,12 +6,14 @@ export function distinctUntilObjChanged<T>(keys?: string[]) {
   return function (source: Observable<T>) {
     return new Observable<T>(subscriber => {
       return source.subscribe({
-        next(curr) { setTimeout(() => {
-          if (hasChanges(prev, curr, <string[]>keys)) {
-            prev = typeof curr === "object" && curr !== null ? {...curr} : null;
-            subscriber.next(curr); 
-          }
-        }); }, // ? {...curr} : curr
+        next(curr) {
+          setTimeout(() => {
+            if (hasChanges(prev, curr, <string[]>keys)) {
+              prev = typeof curr === "object" && curr !== null ? { ...curr } : null;
+              subscriber.next(curr);
+            }
+          });
+        }, // ? {...curr} : curr
         error(err) { subscriber.error(err) },
         complete() { subscriber.complete() }
       })
