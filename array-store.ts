@@ -3,7 +3,8 @@
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
 
-import { BehaviorSubject, combineLatest, distinctUntilChanged, filter, map, Observable, shareReplay } from "rxjs";
+import { BehaviorSubject, combineLatest, Observable } from "rxjs";
+import {distinctUntilChanged, filter, map, shareReplay } from 'rxjs/operators';
 import { ActiveDocumnet } from "./active-document";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 

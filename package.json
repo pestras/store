@@ -1,6 +1,6 @@
 {
   "name": "@pestras/store",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "State management stores",
   "main": "index.js",
   "repository": {
@@ -14,7 +14,7 @@
   "license": "ISC",
   "dependencies": {
     "@pestras/toolbox": "^1.2.3",
-    "rxjs": "^7.3.0"
+    "rxjs": "^6.6.0"
   },
   "devDependencies": {
     "typescript": "^4.3.5"

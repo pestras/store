@@ -1,4 +1,5 @@
-import { BehaviorSubject, map, shareReplay, distinctUntilChanged, combineLatest, filter, Observable } from "rxjs";
+import { BehaviorSubject, combineLatest, Observable } from "rxjs";
+import { map, shareReplay, distinctUntilChanged, filter } from 'rxjs/operators';
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 import { getValue } from '@pestras/toolbox/object/get-value';
 import { omit } from '@pestras/toolbox/object/omit';
