@@ -46,7 +46,7 @@ export abstract class DocumentStore<T = any> {
    * @param replace **boolean?** : *replace document or default merge*
    * @returns **T**
    */
-  protected update(data: Partial<T>, replace = false): T {
+  protected update(data: Partial<T>, replace = false, emit = true): T {
     if (!data)
       return null;
 
@@ -57,7 +57,7 @@ export abstract class DocumentStore<T = any> {
     else
       curr = this.map(<T>data);
 
-    !!this.onChange && this.onChange(curr);
+    !!this.onChange && emit && this.onChange(curr);
     this._dataSub.next(curr);
     return curr;
   }
@@ -67,7 +67,7 @@ export abstract class DocumentStore<T = any> {
    * @param keyPaths **Array\<keyof T\>** : *Array of fields path*
    * @returns **T**
    */
-  protected remove<U extends keyof T>(keyPaths: U[]): T {
+  protected remove<U extends keyof T>(keyPaths: U[], emit = true): T {
     let data = this.get();
 
     if (!data)
@@ -75,17 +75,17 @@ export abstract class DocumentStore<T = any> {
 
     omit(data, <string[]>keyPaths);
 
-    !!this.onChange && this.onChange(data);
+    !!this.onChange && emit && this.onChange(data);
     this._dataSub.next(data);
     return data;
   }
 
   /** Clear document data then emit **null** value */
-  protected clear(): void {
+  protected clear(emit = true): void {
     if (this._dataSub.getValue() === null)
       return;
 
-    !!this.onChange && this.onChange(null);
+    !!this.onChange && emit && this.onChange(null);
     this._dataSub.next(null);
   }
 

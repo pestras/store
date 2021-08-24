@@ -4,7 +4,7 @@
 // https://opensource.org/licenses/MIT
 
 import { BehaviorSubject, combineLatest, Observable } from "rxjs";
-import {distinctUntilChanged, filter, map, shareReplay } from 'rxjs/operators';
+import { distinctUntilChanged, filter, map, shareReplay } from 'rxjs/operators';
 import { ActiveDocumnet } from "./active-document";
 import { distinctUntilObjChanged } from "./operators/distinctUntilObjChanged";
 
@@ -119,15 +119,15 @@ export class ArrayStore<T = any> {
    * @param replace **number?** : *number of documents to replace starting from the index*
    * @returns **T**
    */
-  protected add(doc: T, index?: number, replace = 0): T {
+  protected add(doc: T, index?: number, replace = 0, emit = true): T {
     let docs = this._dataSub.getValue();
 
-    if (index !== undefined && index > 0 && index <= docs.length)
+    if (typeof index !== "number")
       docs.splice(index, replace, doc);
     else
       docs.push(doc);
 
-    !!this.onAdd && this.onAdd([doc]);
+    !!this.onAdd && emit && this.onAdd([doc]);
     this._dataSub.next(docs);
     return doc;
   }
@@ -139,15 +139,15 @@ export class ArrayStore<T = any> {
    * @param replace **number?** : *number of documents to replace starting from the index*
    * @returns **T[]**
    */
-  protected insertMany(docs: T[], index?: number, replace?: number): T[] {
+  protected insertMany(docs: T[], index?: number, replace?: number, emit = true): T[] {
     let currDocs = this._dataSub.getValue();
 
-    if (index !== undefined && index > 0 && index <= docs.length)
+    if (typeof index !== "number")
       currDocs.splice(index, replace, ...docs);
     else
       currDocs.push(...docs);
 
-    !!this.onAdd && this.onAdd(docs);
+    !!this.onAdd && emit && this.onAdd(docs);
     this._dataSub.next(currDocs);
     return docs;
   }
@@ -158,7 +158,7 @@ export class ArrayStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns  **T**
    */
-  protected update(index: number, update: Partial<T>): T {
+  protected update(index: number, update: Partial<T>, emit = true): T {
     let currDocs = this._dataSub.getValue();
     let doc = currDocs[index];
 
@@ -166,36 +166,28 @@ export class ArrayStore<T = any> {
       return null;
 
     Object.assign(doc, update);
-    !!this.onUpdate && this.onUpdate([doc]);
+    !!this.onUpdate && emit && this.onUpdate([doc]);
     this._dataSub.next(currDocs);
     return doc;
   }
 
-  /**
-   * Update all documents
-   * @param update **Partial\<T\>** : *update*
-   * @returns **T[]**
-   */
-  protected updateMany(update: Partial<T>): T[];
   /**
    * Update documents by list of indexes
    * @param indexes **number[]** : *documents indexes
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(indexes: number[], update: Partial<T>): T[];
+  protected updateMany(indexes: number[], update: Partial<T>, emit?: boolean): T[];
   /**
    * Update documents by filter
    * @param filter **(doc: T) => boolean** : *document filter*
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>): T[]
-  protected updateMany(filter: Partial<T> | number[] | ((doc: T) => boolean), update?: Partial<T>): T[] {
+  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>, emit?: boolean): T[]
+  protected updateMany(filter: Partial<T> | number[] | ((doc: T) => boolean), update?: Partial<T>, emit = true): T[] {
     let currDocs = this._dataSub.getValue();
-    let docs = !update
-      ? currDocs
-      : this._docs(<number[]>filter);
+    let docs = this._docs(<number[]>filter);
 
     if (docs.length === 0)
       return [];
@@ -203,9 +195,28 @@ export class ArrayStore<T = any> {
     for (let doc of docs)
       Object.assign(doc, update);
 
-    !!this.onUpdate && this.onUpdate(docs);
+    !!this.onUpdate && emit && this.onUpdate(docs);
     this._dataSub.next(currDocs);
     return docs;
+  }
+
+  /**
+   * Update all documents
+   * @param update **Partial\<T\>** : *update*
+   * @returns **T[]**
+   */
+  protected updateAll(update: Partial<T>, emit = true): T[] {
+    let currDocs = this._dataSub.getValue();
+
+    if (currDocs.length === 0)
+      return [];
+
+    for (let doc of currDocs)
+      Object.assign(doc, update);
+
+    !!this.onUpdate && emit && this.onUpdate(currDocs);
+    this._dataSub.next(currDocs);
+    return currDocs;
   }
 
   /**
@@ -213,11 +224,11 @@ export class ArrayStore<T = any> {
    * @param docs **T[]** : *Array of new documents* 
    * @returns **T[]**
    */
-  protected replaceAll(docs: T[]): T[] {
+  protected replaceAll(docs: T[], emit = true): T[] {
     !!this.onClear && this.onClear();
 
     if (docs.length > 0)
-      !!this.onAdd && this.onAdd(docs);
+      !!this.onAdd && emit && this.onAdd(docs);
 
     this._dataSub.next(docs);
     return docs;
@@ -228,14 +239,14 @@ export class ArrayStore<T = any> {
    * @param index **number** : *Document index*
    * @returns **T**
    */
-  protected removeOne(index: number): T {
+  protected removeOne(index: number, emit = true): T {
     let docs = this._dataSub.getValue();
 
     if (!docs[index])
       return null;
 
     let removed = docs.splice(index, 1);
-    !!this.onDelete && this.onDelete(removed);
+    !!this.onDelete && emit && this.onDelete(removed);
     this._dataSub.next(docs);
     return removed[0];
   }
@@ -245,14 +256,14 @@ export class ArrayStore<T = any> {
    * @param indexs **number[]** : *documents indexes*
    * @returns **T[]**
    */
-  protected removeMany(indexs: number[]): T[];
+  protected removeMany(indexs: number[], emit?: boolean): T[];
   /**
    * Remove documents by filter
    * @param filter **(doc: T) => boolean** : *documents filter*
    * @returns **T[]**
    */
-  protected removeMany(filter: (doc: T) => boolean): T[];
-  protected removeMany(filter: number[] | ((doc: T) => boolean)): T[] {
+  protected removeMany(filter: (doc: T) => boolean, emit?: boolean): T[];
+  protected removeMany(filter: number[] | ((doc: T) => boolean), emit = true): T[] {
     let docs = this._dataSub.getValue();
     let deleted: T[] = [];
     let indexes: number[];
@@ -274,14 +285,14 @@ export class ArrayStore<T = any> {
     for (let i = indexes.length - 1; i >= 0; i--)
       deleted.push(docs.splice(i, 1)[0]);
 
-    !!this.onDelete && this.onDelete(deleted);
+    !!this.onDelete && emit && this.onDelete(deleted);
     this._dataSub.next(docs);
     return deleted;
   }
 
   /** Clear all documents */
-  protected clear(): void {
-    !!this.onClear && this.onClear();
+  protected clear(emit = true): void {
+    !!this.onClear && emit && this.onClear();
     this._dataSub.next([]);
   }
 
