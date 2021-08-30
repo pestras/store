@@ -125,9 +125,9 @@ export class ArrayStore<T = any> {
     let docs = this._dataSub.getValue();
 
     if (typeof index !== "number")
-      docs.splice(index, replace, doc);
+      docs.splice(index, replace, this.map(doc));
     else
-      docs.push(doc);
+      docs.push(this.map(doc));
 
     this.onChange && this.onChange([doc], 'add');
     this._dataSub.next(docs);
@@ -146,9 +146,9 @@ export class ArrayStore<T = any> {
     let currDocs = this._dataSub.getValue();
 
     if (typeof index !== "number")
-      currDocs.splice(index, replace, ...docs);
+      currDocs.splice(index, replace, ...docs.map(doc => this.map(doc)));
     else
-      currDocs.push(...docs);
+      currDocs.push(...docs.map(doc => this.map(doc)));
 
     this.onChange && this.onChange(docs, 'add');
     this._dataSub.next(currDocs);
@@ -232,7 +232,7 @@ export class ArrayStore<T = any> {
    */
   protected replaceAll(docs: T[]): T[] {
     this.onChange && this.onChange(docs, 'replace');
-    this._dataSub.next(docs);
+    this._dataSub.next(docs.map(doc => this.map(doc)));
     return docs;
   }
 

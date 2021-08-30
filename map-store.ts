@@ -156,7 +156,7 @@ export class MapStore<T = any> {
     if (container.has(doc[this.idPath]) && !replace)
       return null;
 
-    container.set(doc[this.idPath], doc);
+    container.set(doc[this.idPath], this.map(doc));
 
     this.onChange && this.onChange([doc], 'insert');
     this._dataSub.next(container);
@@ -177,7 +177,7 @@ export class MapStore<T = any> {
       if (map.has(doc[this.idPath]) && !replace)
         continue;
 
-      map.set(doc[this.idPath], doc);
+      map.set(doc[this.idPath], this.map(doc));
       inserted.push(doc);
     };
 
@@ -301,10 +301,8 @@ export class MapStore<T = any> {
    * @returns **T[]**
    */
   protected replaceAll(docs: T[]): T[] {
-    let map = this.docsToMap(docs);
-
     this.onChange && this.onChange(docs, 'replace');
-    this._dataSub.next(map);
+    this._dataSub.next(this.docsToMap(docs.map(doc => this.map(doc))));
     return docs;
   }
 
