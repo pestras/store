@@ -34,13 +34,6 @@ export abstract class DocumentStore<T = any> {
   }
 
   /**
-   * Abstract method called whenever document has changed,
-   * called before the public emitter.
-   * @param data **T** : *Document new state*
-   */
-  protected onChange?(data: T);
-
-  /**
    * Update document
    * @param data **Partial\<T\>** : *update*
    * @param replace **boolean?** : *replace document or default merge*
@@ -57,7 +50,6 @@ export abstract class DocumentStore<T = any> {
     else
       curr = this.map(<T>data);
 
-    !!this.onChange && emit && this.onChange(curr);
     this._dataSub.next(curr);
     return curr;
   }
@@ -75,7 +67,6 @@ export abstract class DocumentStore<T = any> {
 
     omit(data, <string[]>keyPaths);
 
-    !!this.onChange && emit && this.onChange(data);
     this._dataSub.next(data);
     return data;
   }
@@ -85,7 +76,6 @@ export abstract class DocumentStore<T = any> {
     if (this._dataSub.getValue() === null)
       return;
 
-    !!this.onChange && emit && this.onChange(null);
     this._dataSub.next(null);
   }
 

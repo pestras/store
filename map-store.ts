@@ -148,16 +148,16 @@ export class MapStore<T = any> {
    * @param replace **boolean?** : *replace old document*
    * @returns **T**
    */
-  protected insert(doc: T, replace = false, emit = true): T {
+  protected insert(doc: T, replace = false): T {
     let container = this.container;
 
     if (container.has(doc[this.idPath]) && !replace)
       return null;
 
     container.set(doc[this.idPath], doc);
-
-    !!this.onInsert && emit && this.onInsert([doc]);
+    
     this._dataSub.next(container);
+
     return doc;
   }
 
@@ -167,7 +167,7 @@ export class MapStore<T = any> {
    * @param replace **boolean?** : *replace old documents*
    * @returns **T[]**
    */
-  protected insertMany(docs: T[], replace = false, emit = true): T[] {
+  protected insertMany(docs: T[], replace = false): T[] {
     let map = this.container;
     let inserted: T[] = [];
 
@@ -181,9 +181,9 @@ export class MapStore<T = any> {
 
     if (inserted.length === 0)
       return [];
-
-    !!this.onInsert && emit && this.onInsert(inserted);
+      
     this._dataSub.next(map);
+
     return inserted;
   }
 
@@ -193,7 +193,7 @@ export class MapStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns **T**
    */
-  protected update(id: string, update: Partial<T>, emit = true): T {
+  protected update(id: string, update: Partial<T>): T {
     let map = this.container;
 
     if (!map.has(id))
@@ -202,9 +202,9 @@ export class MapStore<T = any> {
     let doc = map.get(id);
     Object.assign(doc, update);
     map.set(id, doc);
-
-    !!this.onUpdate && emit && this.onUpdate([doc]);
+    
     this._dataSub.next(map);
+
     return doc;
   }
 
@@ -214,15 +214,15 @@ export class MapStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(ids: string[], update: Partial<T>, emit?: boolean): T[];
+  protected updateMany(ids: string[], update: Partial<T>): T[];
   /**
    * Update multiple documents by filter
    * @param filter **(doc: T) => boolean** : *Document filter*
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>, emit?: boolean): T[];
-  protected updateMany(filter: string[] | ((doc: T) => boolean), update: Partial<T>, emit = true): T[] {
+  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>): T[];
+  protected updateMany(filter: string[] | ((doc: T) => boolean), update: Partial<T>): T[] {
     let map = this.container;
     let updated: T[] = [];
 
@@ -251,9 +251,9 @@ export class MapStore<T = any> {
 
     if (updated.length === 0)
       return [];
-
-    !!this.onUpdate && emit && this.onUpdate(updated);
+      
     this._dataSub.next(map);
+
     return updated;
   }
 
@@ -263,7 +263,7 @@ export class MapStore<T = any> {
    * @param updates **Partial\<T\>[]** : *Updates*
    * @returns **T[]**
    */
-  protected bulkUpdate(updates: Partial<T>[], emit = true): T[] {
+  protected bulkUpdate(updates: Partial<T>[]): T[] {
     let map = this.container;
     let updated: T[] = [];
 
@@ -285,9 +285,9 @@ export class MapStore<T = any> {
 
     if (updated.length === 0)
       return [];
-
-    !!this.onUpdate && emit && this.onUpdate(updated);
+      
     this._dataSub.next(map);
+
     return updated;
   }
 
@@ -296,14 +296,11 @@ export class MapStore<T = any> {
    * @param docs **T[]** : *Array of documents*
    * @returns **T[]**
    */
-  protected replaceAll(docs: T[], emit = true): T[] {
-    !!this.onClear && this.onClear();
+  protected replaceAll(docs: T[]): T[] {
     let map = this.docsToMap(docs);
 
-    if (docs.length > 0)
-      !!this.onInsert && emit && this.onInsert(docs);
-
     this._dataSub.next(map);
+
     return docs;
   }
 
@@ -312,7 +309,7 @@ export class MapStore<T = any> {
    * @param id **string** : *Document id*
    * @returns **T**
    */
-  protected removeOne(id: string, emit = true): T {
+  protected removeOne(id: string): T {
     let map = this.container;
     let doc = map.get(id);
 
@@ -320,9 +317,8 @@ export class MapStore<T = any> {
       return null;
 
     map.delete(id);
-
-    !!this.onDelete && emit && this.onDelete([doc]);
     this._dataSub.next(map);
+
     return doc;
   }
 
@@ -331,14 +327,14 @@ export class MapStore<T = any> {
    * @param ids **string[]** : *Array of documents ids**
    * @returns **T[]**
    */
-  protected removeMany(ids: string[], emit?: boolean): T[]
+  protected removeMany(ids: string[]): T[]
   /**
    * Remove multiple documents by filter
    * @param filter **(doc: T) => boolean** : *Documents filter**
    * @returns **T[]**
    */
-  protected removeMany(filter: (doc: T) => boolean, emit?: boolean): T[]
-  protected removeMany(filter: string[] | ((doc: T) => boolean), emit = true): T[] {
+  protected removeMany(filter: (doc: T) => boolean): T[]
+  protected removeMany(filter: string[] | ((doc: T) => boolean)): T[] {
     let map = this.container;
     let removed: T[] = [];
 
@@ -365,39 +361,15 @@ export class MapStore<T = any> {
     if (removed.length === 0)
       return [];
 
-    !!this.onDelete && emit && this.onDelete(removed);
     this._dataSub.next(map);
+
     return removed;
   }
 
   /** Clear all documents */
-  protected clear(emit = true): void {
-    !!this.onClear && emit && this.onClear();
+  protected clear(): void {
     this._dataSub.next(new Map<string, T>());
   }
-
-  /**
-   * Abstract method called whenever new documents were inserted.
-   * @param docs **T[]** : *Array of inserted documents*
-   */
-  protected onInsert?(docs: T[]): void;
-
-  /**
-   * Abstract method called whenever documents were updated.
-   * @param docs **T[]** : *Array of inserted documents*
-   */
-  protected onUpdate?(docs: T[]): void;
-
-  /**
-   * Abstract method called whenever documents were deleted.
-   * @param docs **T[]** : *Array of removed documents*
-   */
-  protected onDelete?(docs: T[]): void;
-
-  /**
-   * Abstract method called whenever Map was cleared.
-   */
-  protected onClear?(): void;
 
   // Public Members
   // ----------------------------------------------------------------------------------------------

@@ -119,16 +119,16 @@ export class ArrayStore<T = any> {
    * @param replace **number?** : *number of documents to replace starting from the index*
    * @returns **T**
    */
-  protected add(doc: T, index?: number, replace = 0, emit = true): T {
+  protected add(doc: T, index?: number, replace = 0): T {
     let docs = this._dataSub.getValue();
 
     if (typeof index !== "number")
       docs.splice(index, replace, doc);
     else
       docs.push(doc);
-
-    !!this.onAdd && emit && this.onAdd([doc]);
+      
     this._dataSub.next(docs);
+
     return doc;
   }
 
@@ -139,16 +139,16 @@ export class ArrayStore<T = any> {
    * @param replace **number?** : *number of documents to replace starting from the index*
    * @returns **T[]**
    */
-  protected insertMany(docs: T[], index?: number, replace?: number, emit = true): T[] {
+  protected insertMany(docs: T[], index?: number, replace?: number): T[] {
     let currDocs = this._dataSub.getValue();
 
     if (typeof index !== "number")
       currDocs.splice(index, replace, ...docs);
     else
       currDocs.push(...docs);
-
-    !!this.onAdd && emit && this.onAdd(docs);
+      
     this._dataSub.next(currDocs);
+
     return docs;
   }
 
@@ -158,7 +158,7 @@ export class ArrayStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns  **T**
    */
-  protected update(index: number, update: Partial<T>, emit = true): T {
+  protected update(index: number, update: Partial<T>): T {
     let currDocs = this._dataSub.getValue();
     let doc = currDocs[index];
 
@@ -166,8 +166,8 @@ export class ArrayStore<T = any> {
       return null;
 
     Object.assign(doc, update);
-    !!this.onUpdate && emit && this.onUpdate([doc]);
     this._dataSub.next(currDocs);
+
     return doc;
   }
 
@@ -177,15 +177,15 @@ export class ArrayStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(indexes: number[], update: Partial<T>, emit?: boolean): T[];
+  protected updateMany(indexes: number[], update: Partial<T>): T[];
   /**
    * Update documents by filter
    * @param filter **(doc: T) => boolean** : *document filter*
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>, emit?: boolean): T[]
-  protected updateMany(filter: Partial<T> | number[] | ((doc: T) => boolean), update?: Partial<T>, emit = true): T[] {
+  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>): T[]
+  protected updateMany(filter: Partial<T> | number[] | ((doc: T) => boolean), update?: Partial<T>): T[] {
     let currDocs = this._dataSub.getValue();
     let docs = this._docs(<number[]>filter);
 
@@ -194,8 +194,7 @@ export class ArrayStore<T = any> {
 
     for (let doc of docs)
       Object.assign(doc, update);
-
-    !!this.onUpdate && emit && this.onUpdate(docs);
+      
     this._dataSub.next(currDocs);
     return docs;
   }
@@ -205,7 +204,7 @@ export class ArrayStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateAll(update: Partial<T>, emit = true): T[] {
+  protected updateAll(update: Partial<T>): T[] {
     let currDocs = this._dataSub.getValue();
 
     if (currDocs.length === 0)
@@ -213,8 +212,7 @@ export class ArrayStore<T = any> {
 
     for (let doc of currDocs)
       Object.assign(doc, update);
-
-    !!this.onUpdate && emit && this.onUpdate(currDocs);
+      
     this._dataSub.next(currDocs);
     return currDocs;
   }
@@ -224,12 +222,7 @@ export class ArrayStore<T = any> {
    * @param docs **T[]** : *Array of new documents* 
    * @returns **T[]**
    */
-  protected replaceAll(docs: T[], emit = true): T[] {
-    !!this.onClear && this.onClear();
-
-    if (docs.length > 0)
-      !!this.onAdd && emit && this.onAdd(docs);
-
+  protected replaceAll(docs: T[]): T[] {
     this._dataSub.next(docs);
     return docs;
   }
@@ -239,14 +232,14 @@ export class ArrayStore<T = any> {
    * @param index **number** : *Document index*
    * @returns **T**
    */
-  protected removeOne(index: number, emit = true): T {
+  protected removeOne(index: number): T {
     let docs = this._dataSub.getValue();
 
     if (!docs[index])
       return null;
 
     let removed = docs.splice(index, 1);
-    !!this.onDelete && emit && this.onDelete(removed);
+    
     this._dataSub.next(docs);
     return removed[0];
   }
@@ -256,14 +249,14 @@ export class ArrayStore<T = any> {
    * @param indexs **number[]** : *documents indexes*
    * @returns **T[]**
    */
-  protected removeMany(indexs: number[], emit?: boolean): T[];
+  protected removeMany(indexs: number[]): T[];
   /**
    * Remove documents by filter
    * @param filter **(doc: T) => boolean** : *documents filter*
    * @returns **T[]**
    */
-  protected removeMany(filter: (doc: T) => boolean, emit?: boolean): T[];
-  protected removeMany(filter: number[] | ((doc: T) => boolean), emit = true): T[] {
+  protected removeMany(filter: (doc: T) => boolean): T[];
+  protected removeMany(filter: number[] | ((doc: T) => boolean)): T[] {
     let docs = this._dataSub.getValue();
     let deleted: T[] = [];
     let indexes: number[];
@@ -284,40 +277,15 @@ export class ArrayStore<T = any> {
 
     for (let i = indexes.length - 1; i >= 0; i--)
       deleted.push(docs.splice(i, 1)[0]);
-
-    !!this.onDelete && emit && this.onDelete(deleted);
+      
     this._dataSub.next(docs);
     return deleted;
   }
 
   /** Clear all documents */
-  protected clear(emit = true): void {
-    !!this.onClear && emit && this.onClear();
+  protected clear(): void {
     this._dataSub.next([]);
   }
-
-  /**
-   * Abstract method called whenever new documents were inserted.
-   * @param docs **T[]** : *Array of inserted documents*
-   */
-  protected onAdd?(docs: T[]): void;
-
-  /**
-   * Abstract method called whenever documents were updated.
-   * @param docs **T[]** : *Array of inserted documents*
-   */
-  protected onUpdate?(docs: T[]): void;
-
-  /**
-   * Abstract method called whenever documents were deleted.
-   * @param ids **string[]** : *Array of documents ids*
-   */
-  protected onDelete?(docs: T[]): void;
-
-  /**
-   * Abstract method called whenever Map was cleared.
-   */
-  protected onClear?(): void;
 
   // Public Members
   // ----------------------------------------------------------------------------------------------
