@@ -110,7 +110,7 @@ export abstract class DocumentStore<T = any> {
     let data = this._dataSub.getValue();
     return keyPath
       ? getValue(data, <string>keyPath)
-      : this.map(data);
+      : data;
   }
 
   /**
