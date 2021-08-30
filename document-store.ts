@@ -24,6 +24,8 @@ export abstract class DocumentStore<T = any> {
     this._idleSub.next(val);
   }
 
+  protected onChange?(data: T): void;
+
   /**
    * Creates a clone of an input document
    * @param doc **T** : *input document data*
@@ -39,7 +41,7 @@ export abstract class DocumentStore<T = any> {
    * @param replace **boolean?** : *replace document or default merge*
    * @returns **T**
    */
-  protected update(data: Partial<T>, replace = false, emit = true): T {
+  protected update(data: Partial<T>, replace = false): T {
     if (!data)
       return null;
 
@@ -50,6 +52,7 @@ export abstract class DocumentStore<T = any> {
     else
       curr = this.map(<T>data);
 
+    this.onChange && this.onChange(curr);
     this._dataSub.next(curr);
     return curr;
   }
@@ -59,7 +62,7 @@ export abstract class DocumentStore<T = any> {
    * @param keyPaths **Array\<keyof T\>** : *Array of fields path*
    * @returns **T**
    */
-  protected remove<U extends keyof T>(keyPaths: U[], emit = true): T {
+  protected remove<U extends keyof T>(keyPaths: U[]): T {
     let data = this.get();
 
     if (!data)
@@ -67,15 +70,18 @@ export abstract class DocumentStore<T = any> {
 
     omit(data, <string[]>keyPaths);
 
+    this.onChange && this.onChange(data);
     this._dataSub.next(data);
     return data;
   }
 
   /** Clear document data then emit **null** value */
-  protected clear(emit = true): void {
+  protected clear(): void {
     if (this._dataSub.getValue() === null)
       return;
 
+
+    this.onChange && this.onChange(null);
     this._dataSub.next(null);
   }
 

@@ -90,6 +90,8 @@ export class ArrayStore<T = any> {
 
   // Protected Members
   // ----------------------------------------------------------------------------------------------
+  protected onChange?(data: T[], type: 'add' | 'update' | 'replace' | 'remove' | 'clear'): void;
+  
   /**
    * Creates a clone of an input document
    * @param doc **T** : *input document data*
@@ -126,7 +128,8 @@ export class ArrayStore<T = any> {
       docs.splice(index, replace, doc);
     else
       docs.push(doc);
-      
+
+    this.onChange && this.onChange([doc], 'add');
     this._dataSub.next(docs);
 
     return doc;
@@ -146,7 +149,8 @@ export class ArrayStore<T = any> {
       currDocs.splice(index, replace, ...docs);
     else
       currDocs.push(...docs);
-      
+
+    this.onChange && this.onChange(docs, 'add');
     this._dataSub.next(currDocs);
 
     return docs;
@@ -166,6 +170,8 @@ export class ArrayStore<T = any> {
       return null;
 
     Object.assign(doc, update);
+
+    this.onChange && this.onChange([doc], 'update');
     this._dataSub.next(currDocs);
 
     return doc;
@@ -194,7 +200,8 @@ export class ArrayStore<T = any> {
 
     for (let doc of docs)
       Object.assign(doc, update);
-      
+
+    this.onChange && this.onChange(docs, 'update');
     this._dataSub.next(currDocs);
     return docs;
   }
@@ -212,7 +219,8 @@ export class ArrayStore<T = any> {
 
     for (let doc of currDocs)
       Object.assign(doc, update);
-      
+
+    this.onChange && this.onChange(currDocs, 'update');
     this._dataSub.next(currDocs);
     return currDocs;
   }
@@ -223,6 +231,7 @@ export class ArrayStore<T = any> {
    * @returns **T[]**
    */
   protected replaceAll(docs: T[]): T[] {
+    this.onChange && this.onChange(docs, 'replace');
     this._dataSub.next(docs);
     return docs;
   }
@@ -239,7 +248,8 @@ export class ArrayStore<T = any> {
       return null;
 
     let removed = docs.splice(index, 1);
-    
+
+    this.onChange && this.onChange(removed, 'remove');
     this._dataSub.next(docs);
     return removed[0];
   }
@@ -277,13 +287,15 @@ export class ArrayStore<T = any> {
 
     for (let i = indexes.length - 1; i >= 0; i--)
       deleted.push(docs.splice(i, 1)[0]);
-      
+
+    this.onChange && this.onChange(deleted, 'remove');
     this._dataSub.next(docs);
     return deleted;
   }
 
   /** Clear all documents */
   protected clear(): void {
+    this.onChange && this.onChange([], 'clear');
     this._dataSub.next([]);
   }
 

@@ -92,6 +92,8 @@ export class MapStore<T = any> {
 
   // Protected Members
   // ----------------------------------------------------------------------------------------------
+  protected onChange?(data: T[], type: 'insert' | 'update' | 'replace' | 'remove' | 'clear'): void;
+
   /**
    * Creates a clone of an input document
    * @param doc **T** : *input document data*
@@ -155,9 +157,9 @@ export class MapStore<T = any> {
       return null;
 
     container.set(doc[this.idPath], doc);
-    
-    this._dataSub.next(container);
 
+    this.onChange && this.onChange([doc], 'insert');
+    this._dataSub.next(container);
     return doc;
   }
 
@@ -181,9 +183,9 @@ export class MapStore<T = any> {
 
     if (inserted.length === 0)
       return [];
-      
-    this._dataSub.next(map);
 
+    this.onChange && this.onChange(inserted, 'insert');
+    this._dataSub.next(map);
     return inserted;
   }
 
@@ -202,9 +204,9 @@ export class MapStore<T = any> {
     let doc = map.get(id);
     Object.assign(doc, update);
     map.set(id, doc);
-    
-    this._dataSub.next(map);
 
+    this.onChange && this.onChange([doc], 'update');
+    this._dataSub.next(map);
     return doc;
   }
 
@@ -251,7 +253,8 @@ export class MapStore<T = any> {
 
     if (updated.length === 0)
       return [];
-      
+
+    this.onChange && this.onChange(updated, 'update');
     this._dataSub.next(map);
 
     return updated;
@@ -285,7 +288,8 @@ export class MapStore<T = any> {
 
     if (updated.length === 0)
       return [];
-      
+
+    this.onChange && this.onChange(updated, 'update');
     this._dataSub.next(map);
 
     return updated;
@@ -299,8 +303,8 @@ export class MapStore<T = any> {
   protected replaceAll(docs: T[]): T[] {
     let map = this.docsToMap(docs);
 
+    this.onChange && this.onChange(docs, 'replace');
     this._dataSub.next(map);
-
     return docs;
   }
 
@@ -317,6 +321,7 @@ export class MapStore<T = any> {
       return null;
 
     map.delete(id);
+    this.onChange && this.onChange([doc], 'remove');
     this._dataSub.next(map);
 
     return doc;
@@ -361,6 +366,7 @@ export class MapStore<T = any> {
     if (removed.length === 0)
       return [];
 
+    this.onChange && this.onChange(removed, 'remove');
     this._dataSub.next(map);
 
     return removed;
@@ -368,6 +374,7 @@ export class MapStore<T = any> {
 
   /** Clear all documents */
   protected clear(): void {
+    this.onChange && this.onChange([], 'clear');
     this._dataSub.next(new Map<string, T>());
   }
 
