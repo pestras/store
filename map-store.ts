@@ -63,13 +63,13 @@ export class MapStore<T = any> {
    * @param ids **string[]** : *Array of documents ids*
    * @returns **T[]**
    */
-  private _docs(ids: string[]): T[];
+  private _docs(ids?: string[]): T[];
   /**
    * Get multiple documents by filter
    * @param filter **(doc: T) => boolean** : *documents filter*
    * @returns **T[]**
    */
-  private _docs(filter: (doc: T) => boolean): T[];
+  private _docs(filter?: (doc: T) => boolean): T[];
   private _docs(filter?: string[] | ((doc: T) => boolean)) {
     let result: T[] = [];
 
@@ -498,6 +498,8 @@ export class MapStore<T = any> {
     );
   }
 
+  /** Get all documents */
+  public docs$(): Observable<T[]>;
   /**
    * Subscribe to multiple documents change by ids
    * @param id **string[]** : *array of documents ids*
