@@ -121,7 +121,7 @@ export class ArrayStore<T = any> {
    * @param replace **number?** : *number of documents to replace starting from the index*
    * @returns **T**
    */
-  protected add(doc: T, index?: number, replace = 0): T {
+  protected add(doc: T, index?: number, replace = 0, silence?: boolean): T {
     let docs = this._dataSub.getValue();
 
     if (typeof index !== "number")
@@ -129,7 +129,7 @@ export class ArrayStore<T = any> {
     else
       docs.push(this.map(doc));
 
-    this.onChange && this.onChange([doc], 'add');
+    this.onChange && !silence && this.onChange([doc], 'add');
     this._dataSub.next(docs);
 
     return doc;
@@ -142,7 +142,7 @@ export class ArrayStore<T = any> {
    * @param replace **number?** : *number of documents to replace starting from the index*
    * @returns **T[]**
    */
-  protected insertMany(docs: T[], index?: number, replace?: number): T[] {
+  protected insertMany(docs: T[], index?: number, replace?: number, silence?: boolean): T[] {
     let currDocs = this._dataSub.getValue();
 
     if (typeof index !== "number")
@@ -150,7 +150,7 @@ export class ArrayStore<T = any> {
     else
       currDocs.push(...docs.map(doc => this.map(doc)));
 
-    this.onChange && this.onChange(docs, 'add');
+    this.onChange && !silence && this.onChange(docs, 'add');
     this._dataSub.next(currDocs);
 
     return docs;
@@ -162,7 +162,7 @@ export class ArrayStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns  **T**
    */
-  protected update(index: number, update: Partial<T>): T {
+  protected update(index: number, update: Partial<T>, silence?: boolean): T {
     let currDocs = this._dataSub.getValue();
     let doc = currDocs[index];
 
@@ -171,7 +171,7 @@ export class ArrayStore<T = any> {
 
     Object.assign(doc, update);
 
-    this.onChange && this.onChange([doc], 'update');
+    this.onChange && !silence && this.onChange([doc], 'update');
     this._dataSub.next(currDocs);
 
     return doc;
@@ -183,15 +183,15 @@ export class ArrayStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(indexes: number[], update: Partial<T>): T[];
+  protected updateMany(indexes: number[], update: Partial<T>, silence?: boolean): T[];
   /**
    * Update documents by filter
    * @param filter **(doc: T) => boolean** : *document filter*
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>): T[]
-  protected updateMany(filter: Partial<T> | number[] | ((doc: T) => boolean), update?: Partial<T>): T[] {
+  protected updateMany(filter: (doc: T) => boolean, update: Partial<T>, silence?: boolean): T[]
+  protected updateMany(filter: Partial<T> | number[] | ((doc: T) => boolean), update?: Partial<T>, silence?: boolean): T[] {
     let currDocs = this._dataSub.getValue();
     let docs = this._docs(<number[]>filter);
 
@@ -201,7 +201,7 @@ export class ArrayStore<T = any> {
     for (let doc of docs)
       Object.assign(doc, update);
 
-    this.onChange && this.onChange(docs, 'update');
+    this.onChange && !silence && this.onChange(docs, 'update');
     this._dataSub.next(currDocs);
     return docs;
   }
@@ -211,7 +211,7 @@ export class ArrayStore<T = any> {
    * @param update **Partial\<T\>** : *update*
    * @returns **T[]**
    */
-  protected updateAll(update: Partial<T>): T[] {
+  protected updateAll(update: Partial<T>, silence?: boolean): T[] {
     let currDocs = this._dataSub.getValue();
 
     if (currDocs.length === 0)
@@ -220,7 +220,7 @@ export class ArrayStore<T = any> {
     for (let doc of currDocs)
       Object.assign(doc, update);
 
-    this.onChange && this.onChange(currDocs, 'update');
+    this.onChange && !silence && this.onChange(currDocs, 'update');
     this._dataSub.next(currDocs);
     return currDocs;
   }
@@ -230,8 +230,8 @@ export class ArrayStore<T = any> {
    * @param docs **T[]** : *Array of new documents* 
    * @returns **T[]**
    */
-  protected replaceAll(docs: T[]): T[] {
-    this.onChange && this.onChange(docs, 'replace');
+  protected replaceAll(docs: T[], silence?: boolean): T[] {
+    this.onChange && !silence && this.onChange(docs, 'replace');
     this._dataSub.next(docs.map(doc => this.map(doc)));
     return docs;
   }
@@ -241,7 +241,7 @@ export class ArrayStore<T = any> {
    * @param index **number** : *Document index*
    * @returns **T**
    */
-  protected removeOne(index: number): T {
+  protected removeOne(index: number, silence?: boolean): T {
     let docs = this._dataSub.getValue();
 
     if (!docs[index])
@@ -249,7 +249,7 @@ export class ArrayStore<T = any> {
 
     let removed = docs.splice(index, 1);
 
-    this.onChange && this.onChange(removed, 'remove');
+    this.onChange && !silence && this.onChange(removed, 'remove');
     this._dataSub.next(docs);
     return removed[0];
   }
@@ -259,14 +259,14 @@ export class ArrayStore<T = any> {
    * @param indexs **number[]** : *documents indexes*
    * @returns **T[]**
    */
-  protected removeMany(indexs: number[]): T[];
+  protected removeMany(indexs: number[], silence?: boolean): T[];
   /**
    * Remove documents by filter
    * @param filter **(doc: T) => boolean** : *documents filter*
    * @returns **T[]**
    */
-  protected removeMany(filter: (doc: T) => boolean): T[];
-  protected removeMany(filter: number[] | ((doc: T) => boolean)): T[] {
+  protected removeMany(filter: (doc: T) => boolean, silence?: boolean): T[];
+  protected removeMany(filter: number[] | ((doc: T) => boolean), silence?: boolean): T[] {
     let docs = this._dataSub.getValue();
     let deleted: T[] = [];
     let indexes: number[];
@@ -288,14 +288,14 @@ export class ArrayStore<T = any> {
     for (let i = indexes.length - 1; i >= 0; i--)
       deleted.push(docs.splice(i, 1)[0]);
 
-    this.onChange && this.onChange(deleted, 'remove');
+    this.onChange && !silence && this.onChange(deleted, 'remove');
     this._dataSub.next(docs);
     return deleted;
   }
 
   /** Clear all documents */
-  protected clear(): void {
-    this.onChange && this.onChange([], 'clear');
+  protected clear(silence?: boolean): void {
+    this.onChange && !silence && this.onChange([], 'clear');
     this._dataSub.next([]);
   }
 
